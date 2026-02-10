@@ -1,0 +1,18 @@
+# Dependency Directories
+node_modules/
+dist/
+build/
+vendor/
+
+# Environment Variables & Secrets
+.env
+.env.local
+.DS_Store
+
+# IDE & System Files
+.vscode/
+.idea/
+
+# Backend Go Binaries
+src/backend/main
+src/backend/finance-backend

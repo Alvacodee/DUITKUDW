@@ -1,0 +1,20 @@
+# Abaikan folder virtual environment lokal (Docker akan buat sendiri)
+.venv
+venv
+env
+
+# Abaikan git history
+.git
+
+# Abaikan cache python
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+
+# Abaikan file environment lokal (Docker pakai env dari docker-compose)
+.env
+
+# Abaikan folder build/temp lainnya
+bin
+obj
