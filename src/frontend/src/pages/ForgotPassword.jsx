@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-// Tambahkan Sun dan Moon di sini
 import { Mail, ArrowLeft, CheckCircle, AlertCircle, Sun, Moon } from "lucide-react";
+import { API_URL } from '../config';
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState("");

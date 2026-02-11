@@ -13,44 +13,52 @@ import (
 var DB *gorm.DB
 
 func ConnectDatabase() {
-	// Ambil konfigurasi dari Environment Variables (diset oleh Docker)
-	dbHost := os.Getenv("DB_HOST")
-	dbUser := os.Getenv("DB_USER")
-	dbPassword := os.Getenv("DB_PASSWORD")
-	dbName := os.Getenv("DB_NAME")
-	dbPort := os.Getenv("DB_PORT")
+	// 1. Ambil URL dari .env
+	dsn := os.Getenv("DATABASE_URL")
 
-	// FALLBACK
-	// Jika env kosong (artinya kita jalankan manual 'go run main.go' tanpa Docker),
-	// maka pakailah settingan default localhost ini.
-	if dbHost == "" {
-		dbHost = "localhost"
-		dbUser = "postgres"
-		dbPassword = "Zalvan0129"
-		dbName = "finance_tracker"
-		dbPort = "5432"
+	// 2. Jika tidak ada (untuk Localhost)
+	if dsn == "" {
+		dbHost := os.Getenv("DB_HOST")
+		dbUser := os.Getenv("DB_USER")
+		dbPassword := os.Getenv("DB_PASSWORD")
+		dbName := os.Getenv("DB_NAME")
+		dbPort := os.Getenv("DB_PORT")
+
+		if dbHost == "" {
+			dbHost = "localhost"
+			dbUser = "postgres"
+			dbPassword = "Zalvan0129"
+			dbName = "finance_tracker"
+			dbPort = "5432"
+		}
+
+		dsn = fmt.Sprintf(
+			"host=%s user=%s password=%s dbname=%s port=%s sslmode=disable TimeZone=Asia/Jakarta",
+			dbHost, dbUser, dbPassword, dbName, dbPort,
+		)
 	}
 
-	// Buat String Koneksi (DSN)
-	dsn := fmt.Sprintf(
-		"host=%s user=%s password=%s dbname=%s port=%s sslmode=disable TimeZone=Asia/Jakarta",
-		dbHost, dbUser, dbPassword, dbName, dbPort,
-	)
-
-	//  Koneksi ke Database
-	database, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	// 3. KUNCI UTAMA SUPABASE: Matikan Prepared Statements
+	// Ini yang membuat error "Tenant not found" musnah
+	database, err := gorm.Open(postgres.New(postgres.Config{
+		DSN:                  dsn,
+		PreferSimpleProtocol: true, // WAJIB TRUE UNTUK SUPABASE
+	}), &gorm.Config{})
 
 	if err != nil {
-		log.Fatal("Gagal koneksi ke database: ", err)
+		log.Fatal("❌ Gagal koneksi ke database: ", err)
 	}
 
-	// Auto Migrate (Membuat tabel otomatis)
-	// Pastikan model User & Transaction sudah terdaftar di sini
 	err = database.AutoMigrate(&models.User{}, &models.Transaction{})
 	if err != nil {
-		log.Fatal("Gagal migrasi database: ", err)
+		log.Fatal("❌ Gagal migrasi database: ", err)
 	}
 
 	DB = database
-	fmt.Println("🚀 Database connected successfully to:", dbHost)
+
+	if os.Getenv("DATABASE_URL") != "" {
+		fmt.Println("🚀 Database connected successfully to: Supabase Cloud")
+	} else {
+		fmt.Println("🚀 Database connected successfully to: Local Docker")
+	}
 }
