@@ -6,8 +6,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"math/rand"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5" // Pastikan pakai v5 agar sama dengan middleware
@@ -45,20 +47,20 @@ type GoogleUser struct {
 func HandleGoogleCallback(db *sql.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.FormValue("state") != oauthStateString {
-			http.Error(w, "State invalid", http.StatusBadRequest)
+			http.Error(w, "Proses otentikasi tidak valid (State invalid).", http.StatusBadRequest)
 			return
 		}
 
 		code := r.FormValue("code")
 		token, err := googleOauthConfig.Exchange(context.Background(), code)
 		if err != nil {
-			http.Error(w, "Gagal menukar token code", http.StatusInternalServerError)
+			http.Error(w, "Gagal terhubung dengan server Google.", http.StatusInternalServerError)
 			return
 		}
 
 		resp, err := http.Get("https://www.googleapis.com/oauth2/v2/userinfo?access_token=" + token.AccessToken)
 		if err != nil {
-			http.Error(w, "Gagal ambil data user", http.StatusInternalServerError)
+			http.Error(w, "Gagal mengambil profil akun Google Anda.", http.StatusInternalServerError)
 			return
 		}
 		defer resp.Body.Close()
@@ -71,30 +73,41 @@ func HandleGoogleCallback(db *sql.DB) http.HandlerFunc {
 		var userID int
 		var username string
 
-		// Cek apakah user ada?
+		// Cek apakah user sudah terdaftar?
 		err = db.QueryRow("SELECT id, username FROM users WHERE email = $1", googleUser.Email).Scan(&userID, &username)
 
 		if err == sql.ErrNoRows {
-			// User BARU: Buat user baru
-			username = googleUser.Name
+			// USER BARU: Buat username unik
+			// 1. Ambil nama dari Google, hapus spasi, jadikan huruf kecil (contoh: "John Doe" -> "johndoe")
+			baseUsername := strings.ToLower(strings.ReplaceAll(googleUser.Name, " ", ""))
+			
+			// 2. Tambahkan 4 angka acak di belakangnya untuk menjamin keunikannya
+			rand.Seed(time.Now().UnixNano())
+			randomNum := rand.Intn(9000) + 1000 // Menghasilkan angka antara 1000 - 9999
+			username = fmt.Sprintf("%s_%d", baseUsername, randomNum)
+
+			// 3. Masukkan ke database
 			err = db.QueryRow(
 				"INSERT INTO users (username, email, password, created_at, updated_at) VALUES ($1, $2, $3, $4, $5) RETURNING id",
 				username, googleUser.Email, "GOOGLE_AUTH_USER", time.Now(), time.Now(),
 			).Scan(&userID)
-			
+
 			if err != nil {
-				http.Error(w, "Gagal register user baru: "+err.Error(), http.StatusInternalServerError)
+				// ERROR HANDLING BERSIH: Tidak memunculkan kode SQL ke user
+				fmt.Println("Error insert database:", err.Error()) // Hanya muncul di log server Koyeb
+				http.Error(w, "Terjadi kesalahan pada sistem saat mendaftarkan akun Anda. Silakan coba lagi nanti.", http.StatusInternalServerError)
 				return
 			}
 		} else if err != nil {
-			http.Error(w, "Database error", http.StatusInternalServerError)
+			fmt.Println("Error cek email:", err.Error())
+			http.Error(w, "Terjadi kesalahan saat memeriksa data akun Anda.", http.StatusInternalServerError)
 			return
 		}
 
 		// GENERATE TOKEN
 		jwtToken, err := GenerateJWT(userID, username)
 		if err != nil {
-			http.Error(w, "Gagal buat token", http.StatusInternalServerError)
+			http.Error(w, "Gagal membuat sesi login.", http.StatusInternalServerError)
 			return
 		}
 
@@ -112,7 +125,7 @@ func GenerateJWT(userID int, username string) (string, error) {
 		"username": username,
 		"exp":      time.Now().Add(time.Hour * 24).Unix(),
 	})
-	
+
 	// Gunakan Secret Key dari ENV agar cocok dengan Middleware
-	return token.SignedString([]byte(os.Getenv("JWT_SECRET"))) 
+	return token.SignedString([]byte(os.Getenv("JWT_SECRET")))
 }
