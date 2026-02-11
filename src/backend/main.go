@@ -6,6 +6,7 @@ import (
 	"finance-tracker-backend/handlers"
 	"finance-tracker-backend/middleware"
 	"log"
+	"os" // <-- Tambahan untuk membaca Environment Variables
 
 	"github.com/gin-gonic/gin"
 )
@@ -22,7 +23,13 @@ func main() {
 
 	// Middleware CORS
 	r.Use(func(c *gin.Context) {
-		c.Writer.Header().Set("Access-Control-Allow-Origin", "http://localhost:5173")
+		// Ambil URL dari Koyeb (.env). Jika kosong, fallback ke localhost (untuk testing lokal)
+		frontendURL := os.Getenv("FRONTEND_URL")
+		if frontendURL == "" {
+			frontendURL = "http://localhost:5173"
+		}
+
+		c.Writer.Header().Set("Access-Control-Allow-Origin", frontendURL)
 		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
 		c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
 		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With")
@@ -40,13 +47,12 @@ func main() {
 	r.POST("/forgot-password", handlers.ForgotPassword)
 	r.POST("/reset-password", handlers.ResetPassword)
 
-	
 	// Route Login: Redirect ke Google
 	// gin.WrapF karena HandleGoogleLogin signature-nya (w, r)
 	r.GET("/auth/google/login", gin.WrapF(handlers.HandleGoogleLogin))
 
 	// Route Callback: Menerima data dari Google
-	sqlDB, err := config.DB.DB() 
+	sqlDB, err := config.DB.DB()
 	if err != nil {
 		log.Fatal("Gagal mengambil instance SQL DB:", err)
 	}
