@@ -1,7 +1,7 @@
-import { useState, useEffect } from "react"; // Tambah useEffect
+import { useState, useEffect } from "react";
 import { useSearchParams, useNavigate, Link } from "react-router-dom";
-// Tambah Sun, Moon
 import { Lock, CheckCircle, AlertCircle, Sun, Moon } from "lucide-react";
+import { API_URL } from '../config';
 
 export default function ResetPassword() {
   const [searchParams] = useSearchParams();

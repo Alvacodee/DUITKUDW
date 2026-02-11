@@ -27,7 +27,7 @@ import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
 
 // IMPORT KONFIGURASI API
-import { API_URL } from '../config';
+import { API_URL } from './config';
 
 function App() {
   // --- 1. STATE MANAGEMENT ---

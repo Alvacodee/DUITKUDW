@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { User, Lock, Eye, EyeOff, Sun, Moon, CheckCircle, AlertCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { API_URL } from '../config';
 
 export default function AuthForm({ onLogin }) {
   const [isLogin, setIsLogin] = useState(true);
