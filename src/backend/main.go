@@ -12,6 +12,11 @@ import (
 )
 
 func main() {
+	// JWT_SECRET wajib ada. Tanpa secret, token bisa dipalsukan siapa saja
+	if os.Getenv("JWT_SECRET") == "" {
+		log.Fatal("❌ JWT_SECRET belum di-set di environment")
+	}
+
 	// Konek Database
 	config.ConnectDatabase()
 
@@ -74,6 +79,12 @@ func main() {
 		protected.GET("/predict", controllers.PredictSpending)
 	}
 
-	// Jalankan Server
-	r.Run(":8080")
+	// Jalankan Server (PORT dari env jika ada, default 8080)
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+	if err := r.Run(":" + port); err != nil {
+		log.Fatal("Gagal menjalankan server:", err)
+	}
 }
