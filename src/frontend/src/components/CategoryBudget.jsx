@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
+import { isThisMonth } from '../utils/date';
 
 export default function CategoryBudgets({ transactions, darkMode }) {
   
@@ -17,8 +18,12 @@ export default function CategoryBudgets({ transactions, darkMode }) {
 
   // Load Budget dari LocalStorage saat awal buka
   const [budgets, setBudgets] = useState(() => {
-    const saved = localStorage.getItem('user_budgets');
-    return saved ? JSON.parse(saved) : defaultBudgets;
+    try {
+      const saved = JSON.parse(localStorage.getItem('user_budgets'));
+      return saved && typeof saved === 'object' ? { ...defaultBudgets, ...saved } : defaultBudgets;
+    } catch {
+      return defaultBudgets; // Data localStorage rusak -> pakai default
+    }
   });
 
   // State untuk Modal Edit
@@ -28,12 +33,12 @@ export default function CategoryBudgets({ transactions, darkMode }) {
 
   // LOGIC FUNCTIONS
 
-  // Hitung pengeluaran per kategori
+  // Hitung pengeluaran per kategori (hanya bulan ini, karena anggaran bersifat bulanan)
   const calculateSpending = (category) => {
     if (!transactions) return 0;
     return transactions
-      .filter(t => t.type === 'Pengeluaran' && t.category === category)
-      .reduce((total, t) => total + t.amount, 0);
+      .filter(t => t.type === 'Pengeluaran' && t.category === category && isThisMonth(t))
+      .reduce((total, t) => total + Number(t.amount || 0), 0);
   };
 
   // Buka Modal Edit
@@ -45,6 +50,10 @@ export default function CategoryBudgets({ transactions, darkMode }) {
 
   // Simpan Budget Baru
   const saveBudget = () => {
+    if (!Number.isFinite(newLimit) || newLimit <= 0) {
+      alert('Batas anggaran harus lebih dari 0.');
+      return;
+    }
     const updatedBudgets = { ...budgets, [editingCategory]: newLimit };
     setBudgets(updatedBudgets);
     localStorage.setItem('user_budgets', JSON.stringify(updatedBudgets)); // Simpan ke browser
@@ -68,7 +77,7 @@ export default function CategoryBudgets({ transactions, darkMode }) {
   // Hitung Total Keseluruhan
   const totalBudget = Object.values(budgets).reduce((a, b) => a + b, 0);
   const totalSpent = Object.keys(budgets).reduce((acc, cat) => acc + calculateSpending(cat), 0);
-  const totalPercentage = Math.round((totalSpent / totalBudget) * 100);
+  const totalPercentage = totalBudget > 0 ? Math.round((totalSpent / totalBudget) * 100) : 0;
 
   // RENDER JSX
   return (
@@ -109,7 +118,7 @@ export default function CategoryBudgets({ transactions, darkMode }) {
         {Object.keys(budgets).map((cat) => {
           const limit = budgets[cat];
           const used = calculateSpending(cat);
-          const percentage = Math.min(Math.round((used / limit) * 100), 100);
+          const percentage = limit > 0 ? Math.min(Math.round((used / limit) * 100), 100) : (used > 0 ? 100 : 0);
           
           // Warna Progress Dinamis
           let color = 'bg-emerald-500';

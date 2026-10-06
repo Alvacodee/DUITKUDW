@@ -1,31 +1,20 @@
-import { useState, useEffect } from 'react';
-import { User, Lock, Eye, EyeOff, Sun, Moon, CheckCircle, AlertCircle } from 'lucide-react';
+import { useState } from 'react';
+import { User, Mail, Lock, Eye, EyeOff, Sun, Moon, CheckCircle, AlertCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { API_URL } from '../config';
 
-export default function AuthForm({ onLogin }) {
+const EMPTY_FORM = { username: '', email: '', password: '' };
+
+// darkMode dikelola App agar tema tetap sinkron setelah login
+export default function AuthForm({ onLogin, darkMode, setDarkMode }) {
   const [isLogin, setIsLogin] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
   
   // State Form
-  const [formData, setFormData] = useState({ username: '', password: '' });
+  const [formData, setFormData] = useState(EMPTY_FORM);
   const [showPassword, setShowPassword] = useState(false);
-
-  // State Dark Mode
-  const [darkMode, setDarkMode] = useState(() => localStorage.getItem('theme') === 'dark');
-
-  // Efek ganti body background saat dark mode berubah
-  useEffect(() => {
-    if (darkMode) {
-      document.documentElement.classList.add('dark');
-      localStorage.setItem('theme', 'dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-      localStorage.setItem('theme', 'light');
-    }
-  }, [darkMode]);
 
   // VALIDASI PASSWORD
   const validatePassword = (pwd) => {
@@ -42,7 +31,7 @@ export default function AuthForm({ onLogin }) {
     setError('');
     setLoading(true);
 
-    if (!formData.username || !formData.password) {
+    if (!formData.username || !formData.password || (!isLogin && !formData.email)) {
       setError("Semua kolom harus diisi!");
       setLoading(false);
       return;
@@ -58,31 +47,35 @@ export default function AuthForm({ onLogin }) {
     }
 
     const endpoint = isLogin ? `${API_URL}/login` : `${API_URL}/register`;
+    const payload = isLogin
+      ? { username: formData.username.trim(), password: formData.password }
+      : { username: formData.username.trim(), email: formData.email.trim(), password: formData.password };
     
     try {
       const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(payload),
       });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
 
       if (!res.ok) {
         throw new Error(data.error || 'Terjadi kesalahan');
       }
 
       if (isLogin) {
+        const name = data.username || formData.username.trim();
         localStorage.setItem('token', data.token);
-        localStorage.setItem('username', formData.username);
-        onLogin(data.token);
+        localStorage.setItem('username', name);
+        onLogin(data.token, name);
       } else {
         setSuccess(true);
-        setFormData({ username: '', password: '' }); 
+        setFormData(EMPTY_FORM); 
       }
 
     } catch (err) {
-      setError(err.message);
+      setError(err.message === 'Failed to fetch' ? 'Gagal menghubungi server.' : err.message);
     } finally {
       setLoading(false);
     }
@@ -164,6 +157,27 @@ export default function AuthForm({ onLogin }) {
               />
             </div>
           </div>
+
+          {/* EMAIL - HANYA SAAT REGISTER (dipakai untuk reset password) */}
+          {!isLogin && (
+            <div>
+              <label className={`block text-sm font-bold mb-2 ml-1 ${darkMode ? 'text-slate-300' : 'text-slate-700'}`}>Email</label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Mail size={20} className="text-slate-400" />
+                </div>
+                <input
+                  type="email"
+                  placeholder="nama@email.com"
+                  value={formData.email}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  className={`w-full pl-10 pr-4 py-3 rounded-xl outline-none border transition focus:ring-2 focus:ring-blue-500 ${
+                    darkMode ? 'bg-slate-700 border-slate-600 text-white placeholder-slate-500' : 'bg-slate-50 border-slate-200 text-slate-800 placeholder-slate-400'
+                  }`}
+                />
+              </div>
+            </div>
+          )}
 
           <div>
             <label className={`block text-sm font-bold mb-2 ml-1 ${darkMode ? 'text-slate-300' : 'text-slate-700'}`}>Password</label>
@@ -250,7 +264,7 @@ export default function AuthForm({ onLogin }) {
           <p className={`text-sm ${darkMode ? 'text-slate-400' : 'text-slate-600'}`}>
             {isLogin ? 'Belum punya akun? ' : 'Sudah punya akun? '}
             <button 
-              onClick={() => { setIsLogin(!isLogin); setError(''); setFormData({username:'', password:''}); }}
+              onClick={() => { setIsLogin(!isLogin); setError(''); setFormData(EMPTY_FORM); }}
               className="text-blue-500 font-bold hover:underline transition-colors"
             >
               {isLogin ? 'Daftar di sini' : 'Login di sini'}

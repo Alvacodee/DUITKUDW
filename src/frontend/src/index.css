@@ -1,1 +1,5 @@
 @import "tailwindcss";
+
+/* Tailwind v4 default-nya dark mode ikut setting OS (media query).
+   Aplikasi ini memakai toggle manual dengan class "dark" di <html>, jadi variant-nya di-override. */
+@custom-variant dark (&:where(.dark, .dark *));

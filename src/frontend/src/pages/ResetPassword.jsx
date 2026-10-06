@@ -1,9 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useSearchParams, useNavigate, Link } from "react-router-dom";
 import { Lock, CheckCircle, AlertCircle, Sun, Moon } from "lucide-react";
 import { API_URL } from '../config';
 
-export default function ResetPassword() {
+export default function ResetPassword({ darkMode, setDarkMode }) {
   const [searchParams] = useSearchParams();
   const token = searchParams.get("token");
   const navigate = useNavigate();
@@ -13,18 +13,6 @@ export default function ResetPassword() {
   const [error, setError] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // DARK MODE
-  const [darkMode, setDarkMode] = useState(() => localStorage.getItem('theme') === 'dark');
-
-  useEffect(() => {
-    if (darkMode) {
-      document.documentElement.classList.add('dark');
-      localStorage.setItem('theme', 'dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-      localStorage.setItem('theme', 'light');
-    }
-  }, [darkMode]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -38,7 +26,7 @@ export default function ResetPassword() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token, new_password: password }),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       
       if (res.ok) {
         setMsg("Password berhasil diubah! Mengalihkan ke login...");
@@ -47,7 +35,7 @@ export default function ResetPassword() {
         setMsg(data.error || "Gagal mereset password.");
         setError(true);
       }
-    } catch (err) {
+    } catch {
       setMsg("Terjadi kesalahan sistem.");
       setError(true);
     } finally {

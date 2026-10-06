@@ -1,31 +1,19 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Mail, ArrowLeft, CheckCircle, AlertCircle, Sun, Moon } from "lucide-react";
 import { API_URL } from '../config';
 
-export default function ForgotPassword() {
+export default function ForgotPassword({ darkMode, setDarkMode }) {
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
-  
-  // DARK MODE
-  const [darkMode, setDarkMode] = useState(() => localStorage.getItem('theme') === 'dark');
-
-  // Efek untuk mengubah class di <html> dan simpan ke localStorage
-  useEffect(() => {
-    if (darkMode) {
-      document.documentElement.classList.add('dark');
-      localStorage.setItem('theme', 'dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-      localStorage.setItem('theme', 'light');
-    }
-  }, [darkMode]);
+  const [isError, setIsError] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setMessage("");
+    setIsError(false);
     
     try {
       const res = await fetch(`${API_URL}/forgot-password`, {
@@ -33,9 +21,11 @@ export default function ForgotPassword() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),
       });
-      const data = await res.json();
-      setMessage(data.message || data.error);
-    } catch (err) {
+      const data = await res.json().catch(() => ({}));
+      setIsError(!res.ok);
+      setMessage(data.message || data.error || "Gagal memproses permintaan.");
+    } catch {
+      setIsError(true);
       setMessage("Gagal menghubungi server. Pastikan backend nyala.");
     } finally {
       setLoading(false);
@@ -71,11 +61,11 @@ export default function ForgotPassword() {
 
         {message && (
           <div className={`mb-6 p-4 rounded-xl flex items-start gap-3 text-sm font-medium ${
-            message.includes("Gagal") || message.includes("error") 
+            isError
               ? (darkMode ? 'bg-red-900/30 text-red-300 border border-red-800' : 'bg-red-50 text-red-600 border border-red-100')
               : (darkMode ? 'bg-green-900/30 text-green-300 border border-green-800' : 'bg-blue-50 text-blue-600 border border-blue-100')
           }`}>
-             {message.includes("Gagal") ? <AlertCircle size={18} className="shrink-0 mt-0.5" /> : <CheckCircle size={18} className="shrink-0 mt-0.5" />}
+             {isError ? <AlertCircle size={18} className="shrink-0 mt-0.5" /> : <CheckCircle size={18} className="shrink-0 mt-0.5" />}
              <p>{message}</p>
           </div>
         )}

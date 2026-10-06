@@ -1,16 +1,18 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef } from 'react';
+import { profileImageKey, profileDataKey } from '../utils/storage';
+
+const MAX_IMAGE_SIZE = 1024 * 1024; // 1MB, localStorage browser hanya ~5MB
 
 export default function ProfilePage({ user, profileImage, setProfileImage, darkMode }) {
-  // STATE FORM DATA (Ambil dari LocalStorage jika ada, atau default)
+  // STATE FORM DATA (Ambil dari LocalStorage per-user jika ada, atau default)
   const [formData, setFormData] = useState(() => {
-    const savedData = localStorage.getItem('profileData');
-    return savedData ? JSON.parse(savedData) : {
-      fullName: user || "",
-      email: "",
-      campus: "",
-      role: "",
-      bio: ""
-    };
+    const defaults = { fullName: user || "", email: "", campus: "", role: "", bio: "" };
+    try {
+      const savedData = JSON.parse(localStorage.getItem(profileDataKey(user)));
+      return savedData ? { ...defaults, ...savedData } : defaults;
+    } catch {
+      return defaults;
+    }
   });
 
   const fileInputRef = useRef(null);
@@ -28,7 +30,7 @@ export default function ProfilePage({ user, profileImage, setProfileImage, darkM
 
   // FUNGSI SIMPAN PERUBAHAN
   const handleSave = () => {
-    localStorage.setItem('profileData', JSON.stringify(formData));
+    localStorage.setItem(profileDataKey(user), JSON.stringify(formData));
     setIsSaved(true);
     setTimeout(() => setIsSaved(false), 3000); // Hilangkan pesan sukses setelah 3 detik
   };
@@ -36,15 +38,23 @@ export default function ProfilePage({ user, profileImage, setProfileImage, darkM
   // FUNGSI GANTI FOTO
   const handleImageUpload = (e) => {
     const file = e.target.files[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const base64String = reader.result;
-        setProfileImage(base64String);
-        localStorage.setItem('profileImage', base64String);
-      };
-      reader.readAsDataURL(file);
+    e.target.value = ''; // agar file yang sama bisa dipilih ulang
+    if (!file) return;
+    if (file.size > MAX_IMAGE_SIZE) {
+      alert('Ukuran foto maksimal 1MB.');
+      return;
     }
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const base64String = reader.result;
+      try {
+        localStorage.setItem(profileImageKey(user), base64String);
+        setProfileImage(base64String);
+      } catch {
+        alert('Penyimpanan browser penuh. Gunakan foto dengan ukuran lebih kecil.');
+      }
+    };
+    reader.readAsDataURL(file);
   };
 
   return (

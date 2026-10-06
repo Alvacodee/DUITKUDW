@@ -1,16 +1,14 @@
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
+import { isThisMonth } from '../utils/date';
 
 export default function ExpenseChart({ transactions, darkMode }) {
   
-  // Hitung Total & Grouping Data
-  let totalExpense = 0;
-  const processData = () => {
-    if (!transactions) return [];
-    const expenses = transactions.filter(t => t.type === 'Pengeluaran');
-    
-    // Hitung total sekalian
-    totalExpense = expenses.reduce((acc, curr) => acc + Number(curr.amount), 0);
+  // Pengeluaran bulan ini saja (sesuai label "bulan ini")
+  const expenses = (transactions || []).filter(t => t.type === 'Pengeluaran' && isThisMonth(t));
+  const totalExpense = expenses.reduce((acc, curr) => acc + Number(curr.amount), 0);
 
+  // Grouping Data per kategori
+  const processData = () => {
     const grouped = expenses.reduce((acc, curr) => {
       const cat = curr.category || 'Lainnya';
       if (!acc[cat]) acc[cat] = 0;
@@ -63,7 +61,7 @@ export default function ExpenseChart({ transactions, darkMode }) {
                 ))}
               </Pie>
               <Tooltip 
-                formatter={(value) => `Rp ${value.toLocaleString('id-ID')}`}
+                formatter={(value) => `Rp ${Number(value).toLocaleString('id-ID')}`}
                 contentStyle={{ backgroundColor: darkMode ? '#1e293b' : '#fff', borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
                 itemStyle={{ fontWeight: 'bold' }}
               />
@@ -73,7 +71,7 @@ export default function ExpenseChart({ transactions, darkMode }) {
       ) : (
         <div className="h-[250px] flex flex-col items-center justify-center text-slate-400 opacity-70">
           <span className="text-5xl mb-3 grayscale">🍩</span>
-          <p font-medium>Belum ada data pengeluaran</p>
+          <p className="font-medium">Belum ada data pengeluaran bulan ini</p>
         </div>
       )}
     </div>
