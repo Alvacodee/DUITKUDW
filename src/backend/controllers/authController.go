@@ -4,7 +4,9 @@ import (
 	"finance-tracker-backend/config"
 	"finance-tracker-backend/models"
 	"net/http"
+	"net/mail"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -15,33 +17,48 @@ import (
 // REGISTER
 func Register(c *gin.Context) {
 	var body struct {
-		Username string
-		Password string
-		Email    string
+		Username string `json:"username"`
+		Password string `json:"password"`
+		Email    string `json:"email"`
 	}
 
-	if c.Bind(&body) != nil {
+	if c.ShouldBindJSON(&body) != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Gagal membaca body"})
 		return
 	}
 
+	body.Username = strings.TrimSpace(body.Username)
+	body.Email = strings.ToLower(strings.TrimSpace(body.Email))
+
+	// Validasi input (email wajib: dipakai untuk reset password & kolomnya unique)
+	if len(body.Username) < 3 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Username minimal 3 karakter"})
+		return
+	}
+	if _, err := mail.ParseAddress(body.Email); err != nil || !strings.Contains(body.Email, "@") {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Format email tidak valid"})
+		return
+	}
+	if len(body.Password) < 8 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Password minimal 8 karakter"})
+		return
+	}
+
 	// Hash Password
-	hash, err := bcrypt.GenerateFromPassword([]byte(body.Password), 10)
+	hash, err := bcrypt.GenerateFromPassword([]byte(body.Password), bcrypt.DefaultCost)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Gagal hash password"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal hash password"})
 		return
 	}
 
 	// Buat User
 	user := models.User{
-		Username: body.Username, 
+		Username: body.Username,
 		Password: string(hash),
-		Email:    body.Email, // Simpan Email
+		Email:    body.Email,
 	}
-	
-	result := config.DB.Create(&user)
 
-	if result.Error != nil {
+	if err := config.DB.Create(&user).Error; err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Gagal membuat user (Username/Email mungkin sudah ada)"})
 		return
 	}
@@ -52,20 +69,18 @@ func Register(c *gin.Context) {
 // LOGIN
 func Login(c *gin.Context) {
 	var body struct {
-		Username string
-		Password string
+		Username string `json:"username"`
+		Password string `json:"password"`
 	}
 
-	if c.Bind(&body) != nil {
+	if c.ShouldBindJSON(&body) != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Gagal membaca body"})
 		return
 	}
 
 	// Cari User berdasarkan Username
 	var user models.User
-	config.DB.First(&user, "username = ?", body.Username)
-
-	if user.ID == 0 {
+	if err := config.DB.First(&user, "username = ?", strings.TrimSpace(body.Username)).Error; err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Username atau password salah"})
 		return
 	}
