@@ -1,11 +1,15 @@
 # Stage 1: Build React
-FROM node:20-alpine as builder
+FROM node:20-alpine AS builder
 
 WORKDIR /app
 
 # Copy package.json & install dependencies
 COPY package.json package-lock.json ./
-RUN npm install
+RUN npm ci
+
+# URL backend yang di-bake ke bundle (Vite membaca VITE_* saat build)
+ARG VITE_API_URL=http://localhost:8080
+ENV VITE_API_URL=$VITE_API_URL
 
 # Copy source code & build
 COPY . .
