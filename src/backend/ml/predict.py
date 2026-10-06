@@ -12,12 +12,12 @@ def predict():
         # BACA DATA
         input_data = sys.stdin.read()
         if not input_data:
-            print(json.dumps({"error": "No data"}))
+            print(json.dumps({"status": "error", "message": "No data"}))
             return
 
         transactions = json.loads(input_data)
         if not transactions:
-            print(json.dumps({"prediction": 0, "status": "empty", "message": "Data kosong"}))
+            print(json.dumps({"prediction": 0, "trend": "flat", "status": "empty", "message": "Data kosong"}))
             return
 
         df = pd.DataFrame(transactions)
@@ -44,6 +44,11 @@ def predict():
         # Filter hanya Pengeluaran
         if 'type' in df.columns:
             df = df[df['type'].str.lower().isin(['pengeluaran', 'expense'])]
+
+        if df.empty:
+            print(json.dumps({"prediction": 0, "trend": "flat", "status": "not_enough_data",
+                              "message": "Belum ada data pengeluaran dengan tanggal yang valid."}))
+            return
 
         # GROUP BY DATE
         daily_df = df.groupby('date')['amount'].sum().reset_index()
@@ -77,7 +82,7 @@ def predict():
             
             # Kembalikan ke format numeric untuk regresi
             daily_df['days'] = np.arange(len(daily_df))
-            X = daily_df[['days']]
+            X = daily_df[['days']].values
             y = daily_df['amount']
             
             # Bobot (Data baru lebih penting)
@@ -125,8 +130,8 @@ def predict():
                 
                 prediction_result = int(future_pred.sum())
                 
-                # Tentukan tren dengan membandingkan rata-rata prediksi vs rata-rata sejarah
-                if prediction_result > daily_df['amount'].sum(): 
+                # Tentukan tren: bandingkan prediksi 30 hari ke depan vs 30 hari terakhir
+                if prediction_result > daily_df['amount'].tail(30).sum():
                     trend_status = "naik"
                 else:
                     trend_status = "turun"
@@ -138,6 +143,7 @@ def predict():
                 sys.stderr.write(f"HW Error: {str(e)}, fallback to Linear.\n")
                 prediction_result = int(daily_df['amount'].mean() * 30)
                 model_name = "Fallback Average"
+                message_prefix = f"Data ({total_days} hari) tidak cukup bervariasi, menggunakan rata-rata harian."
 
         # OUTPUT FINAL
         result = {
@@ -151,7 +157,7 @@ def predict():
 
     except Exception as e:
         sys.stderr.write(f"Python Error: {str(e)}\n")
-        print(json.dumps({"error": str(e), "status": "error"}))
+        print(json.dumps({"status": "error", "message": str(e)}))
 
 if __name__ == "__main__":
     predict()

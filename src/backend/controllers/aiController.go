@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"finance-tracker-backend/config"
 	"finance-tracker-backend/models"
@@ -11,6 +12,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -21,20 +23,14 @@ type PythonResponse struct {
 	Trend      string  `json:"trend"`
 	Status     string  `json:"status"`
 	Message    string  `json:"message"`
+	ModelUsed  string  `json:"model_used"`
 }
 
 func PredictSpending(c *gin.Context) {
 	// AMBIL USER DARI CONTEXT (Sesuai Middleware)
-	userContext, exists := c.Get("user")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized: User data not found"})
-		return
-	}
-
-	// TYPE ASSERTION
-	loggedInUser, ok := userContext.(models.User)
+	loggedInUser, ok := currentUser(c)
 	if !ok {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to parse user data"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized: User data not found"})
 		return
 	}
 
@@ -91,7 +87,11 @@ func PredictSpending(c *gin.Context) {
 
 	scriptPath := filepath.Join(cwd, "ml", "predict.py") 
 	
-	cmd := exec.Command(pythonPath, scriptPath)
+	// Batasi waktu eksekusi agar request tidak menggantung jika Python macet
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 60*time.Second)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, pythonPath, scriptPath)
 	cmd.Stdin = bytes.NewReader(jsonData)
 	
 	var out bytes.Buffer
@@ -103,10 +103,7 @@ func PredictSpending(c *gin.Context) {
 	if err != nil {
 		// Print error detail ke terminal backend untuk debugging
 		fmt.Println("❌ Error Python:", stderr.String()) 
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":  "Gagal menjalankan AI",
-			"detail": stderr.String(),
-		})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menjalankan AI"})
 		return
 	}
 
@@ -114,10 +111,14 @@ func PredictSpending(c *gin.Context) {
 	var result PythonResponse
 	if err := json.Unmarshal(out.Bytes(), &result); err != nil {
 		fmt.Println("❌ Error Parsing JSON:", err)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Format output AI tidak valid",
-			"raw":   out.String(),
-		})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Format output AI tidak valid"})
+		return
+	}
+
+	// Python menulis {"status":"error"} (exit code 0) jika gagal di dalam script
+	if result.Status == "error" {
+		fmt.Println("❌ Error dari AI:", result.Message, stderr.String())
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "AI gagal memproses data"})
 		return
 	}
 
