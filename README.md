@@ -6,23 +6,23 @@
 
 ---
 
-## ✨ Fitur Utama
+## Fitur Utama
 
-### 🚀 Core Features
+### Core Features
 * **Dashboard Interaktif:** Ringkasan saldo, pemasukan, dan pengeluaran dengan grafik visual.
 * **Manajemen Transaksi:** CRUD (Create, Read, Update, Delete) transaksi harian.
 * **Budgeting:** Atur batas pengeluaran per kategori (Makan, Transport, dll) dengan indikator warna peringatan.
 * **Smart Tips:** Saran finansial dinamis berdasarkan kategori pengeluaran terbesar.
 * **Profil Pengguna:** Kustomisasi data diri dan foto profil.
 
-### 🤖 AI Intelligence (Hybrid Model)
+### AI Intelligence (Hybrid Model)
 Fitur unggulan proyek ini adalah sistem prediksi yang "berevolusi" sesuai jumlah data:
 1.  **Fase Awal (< 60 Hari Data):** Menggunakan **Weighted Linear Regression**. Fokus pada tren jangka pendek (harian) dan memberikan bobot lebih pada transaksi terbaru (*recency bias*).
 2.  **Fase Matang (>= 60 Hari Data):** Otomatis beralih ke **Holt-Winters Exponential Smoothing**. Mampu mendeteksi pola musiman (*seasonality*), seperti siklus gajian atau tagihan bulanan berulang.
 
 ---
 
-## 🛠️ Tech Stack
+## Tech Stack
 
 ### Frontend
 * **Framework:** React.js (Vite)
@@ -49,7 +49,7 @@ Fitur unggulan proyek ini adalah sistem prediksi yang "berevolusi" sesuai jumlah
 
 ---
 
-## 📂 Struktur Proyek
+## Struktur Proyek
 
 ```bash
 finance-tracker/
