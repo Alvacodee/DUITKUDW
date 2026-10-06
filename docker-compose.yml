@@ -54,7 +54,10 @@ services:
 
   # 3. FRONTEND
   frontend:
-    build: ./src/frontend
+    build:
+      context: ./src/frontend
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:8080}
     container_name: finance_frontend
     ports:
       - "5173:80"
