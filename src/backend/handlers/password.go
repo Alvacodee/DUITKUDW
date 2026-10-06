@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -68,26 +69,33 @@ func ForgotPassword(c *gin.Context) {
 		return
 	}
 
+	// Pesan sama untuk email terdaftar / tidak (agar tidak bisa dipakai menebak email user)
+	const genericMsg = "Jika email terdaftar, link reset telah dikirim ke email Anda."
+
 	var user models.User
-	if err := config.DB.Where("email = ?", input.Email).First(&user).Error; err != nil {
-		// Pura-pura sukses demi keamanan (agar hacker tidak tahu email mana yang terdaftar)
-		c.JSON(http.StatusOK, gin.H{"message": "Jika email terdaftar, link reset telah dikirim."})
+	if err := config.DB.Where("LOWER(email) = ?", strings.ToLower(strings.TrimSpace(input.Email))).First(&user).Error; err != nil {
+		c.JSON(http.StatusOK, gin.H{"message": genericMsg})
 		return
 	}
 
 	// Generate Token Random 32 Karakter
 	bytes := make([]byte, 16)
-	rand.Read(bytes)
+	if _, err := rand.Read(bytes); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat token reset"})
+		return
+	}
 	token := hex.EncodeToString(bytes)
 
 	// Simpan Token ke Database (Expired 1 jam)
 	user.ResetToken = token
 	user.ResetTokenExpiry = time.Now().Add(time.Hour)
-	config.DB.Save(&user)
+	if err := config.DB.Save(&user).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal memproses permintaan reset"})
+		return
+	}
 
-	// Buat Link Reset
-	// Nanti saat deploy, "localhost:5173" diganti dengan domain website kamu
-	resetLink := fmt.Sprintf("%s/reset-password?token=%s", os.Getenv("FRONTEND_URL"), token)
+	// Buat Link Reset dari FRONTEND_URL
+	resetLink := fmt.Sprintf("%s/reset-password?token=%s", strings.TrimRight(os.Getenv("FRONTEND_URL"), "/"), token)
 
 	// KIRIM EMAIL
 	go func() {
@@ -99,7 +107,7 @@ func ForgotPassword(c *gin.Context) {
 		}
 	}()
 
-	c.JSON(http.StatusOK, gin.H{"message": "Link reset telah dikirim ke email Anda."})
+	c.JSON(http.StatusOK, gin.H{"message": genericMsg})
 }
 
 // User Eksekusi Reset Password (Input Password Baru)
@@ -122,12 +130,20 @@ func ResetPassword(c *gin.Context) {
 	}
 
 	// Hash Password Baru
-	hash, _ := bcrypt.GenerateFromPassword([]byte(input.NewPassword), bcrypt.DefaultCost)
+	hash, err := bcrypt.GenerateFromPassword([]byte(input.NewPassword), bcrypt.DefaultCost)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal memproses password baru"})
+		return
+	}
 	user.Password = string(hash)
-	
+
 	// Hapus Token agar tidak bisa dipakai lagi (One-time use)
 	user.ResetToken = ""
-	config.DB.Save(&user)
+	user.ResetTokenExpiry = time.Time{}
+	if err := config.DB.Save(&user).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menyimpan password baru"})
+		return
+	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Password berhasil diubah! Silakan login."})
 }

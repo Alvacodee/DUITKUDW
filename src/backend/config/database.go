@@ -18,19 +18,12 @@ func ConnectDatabase() {
 
 	// 2. Jika tidak ada (untuk Localhost)
 	if dsn == "" {
-		dbHost := os.Getenv("DB_HOST")
-		dbUser := os.Getenv("DB_USER")
+		// Default per-field untuk localhost. Password TIDAK di-hardcode, wajib dari env
+		dbHost := getEnv("DB_HOST", "localhost")
+		dbUser := getEnv("DB_USER", "postgres")
 		dbPassword := os.Getenv("DB_PASSWORD")
-		dbName := os.Getenv("DB_NAME")
-		dbPort := os.Getenv("DB_PORT")
-
-		if dbHost == "" {
-			dbHost = "localhost"
-			dbUser = "postgres"
-			dbPassword = "Zalvan0129"
-			dbName = "finance_tracker"
-			dbPort = "5432"
-		}
+		dbName := getEnv("DB_NAME", "finance_tracker")
+		dbPort := getEnv("DB_PORT", "5432")
 
 		dsn = fmt.Sprintf(
 			"host=%s user=%s password=%s dbname=%s port=%s sslmode=disable TimeZone=Asia/Jakarta",
@@ -61,4 +54,11 @@ func ConnectDatabase() {
 	} else {
 		fmt.Println("🚀 Database connected successfully to: Local Docker")
 	}
+}
+
+func getEnv(key, fallback string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return fallback
 }
