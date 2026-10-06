@@ -1,7 +1,7 @@
 // Tambahkan prop 'text' di sini
-export default function DashboardStats({ transactions, darkMode, text }) {
-  const totalIncome = transactions.filter(t => t.type === 'Pemasukan').reduce((acc, curr) => acc + curr.amount, 0);
-  const totalExpense = transactions.filter(t => t.type === 'Pengeluaran').reduce((acc, curr) => acc + curr.amount, 0);
+export default function DashboardStats({ transactions, text }) {
+  const totalIncome = transactions.filter(t => t.type === 'Pemasukan').reduce((acc, curr) => acc + Number(curr.amount || 0), 0);
+  const totalExpense = transactions.filter(t => t.type === 'Pengeluaran').reduce((acc, curr) => acc + Number(curr.amount || 0), 0);
   const balance = totalIncome - totalExpense;
 
   const formatRupiah = (num) => "Rp " + num.toLocaleString('id-ID');

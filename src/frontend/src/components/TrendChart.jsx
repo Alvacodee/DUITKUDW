@@ -1,4 +1,5 @@
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { parseTxDate, toDateKey } from '../utils/date';
 
 export default function TrendChart({ transactions, darkMode, mode = 'daily' }) {
   
@@ -14,51 +15,23 @@ export default function TrendChart({ transactions, darkMode, mode = 'daily' }) {
       return type === 'pengeluaran' || type === 'expense';
     });
 
-    console.log(`[TrendChart ${mode}] Total Transaksi:`, transactions.length);
-    console.log(`[TrendChart ${mode}] Filtered Expenses:`, expenses.length);
-    if (expenses.length > 0) {
-      console.log(`[TrendChart ${mode}] Sample Data:`, expenses[0]);
-    }
-
-    // Grouping Data
+    // Grouping Data per hari / per bulan (pakai tanggal lokal agar tidak bergeser zona waktu)
     const grouped = expenses.reduce((acc, curr) => {
-      // Coba ambil tanggal dari berbagai kemungkinan field
-      // Prioritas: t.date (input manual) -> t.created_at (database) -> t.CreatedAt (Go default)
-      const rawDate = curr.date || curr.created_at || curr.CreatedAt;
-      
-      if (!rawDate) return acc;
+      const dateObj = parseTxDate(curr);
+      if (!dateObj) return acc;
 
-      try {
-        const dateObj = new Date(rawDate);
-        
-        // Cek apakah tanggal valid
-        if (isNaN(dateObj.getTime())) {
-          console.warn("Tanggal invalid ditemukan:", rawDate);
-          return acc;
-        }
+      const key = mode === 'monthly'
+        ? toDateKey(dateObj).slice(0, 7) // YYYY-MM
+        : toDateKey(dateObj);            // YYYY-MM-DD
 
-        let key;
-        if (mode === 'monthly') {
-          // Format: YYYY-MM
-          key = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}`;
-        } else {
-          // Format: YYYY-MM-DD
-          key = dateObj.toISOString().split('T')[0];
-        }
-
-        if (!acc[key]) acc[key] = 0;
-        
-        // Pastikan amount dibaca sebagai angka (handle jika string)
-        acc[key] += Number(curr.amount);
-      } catch (e) {
-        console.error("Error processing item:", curr, e);
-      }
+      acc[key] = (acc[key] || 0) + Number(curr.amount || 0);
       return acc;
     }, {});
 
-    // Ubah ke Array
-    const result = Object.keys(grouped).sort().map(key => {
-      const dateObj = new Date(key + (mode === 'monthly' ? '-01' : ''));
+    // Ubah ke Array (key YYYY-MM[-DD] bisa diurutkan secara string)
+    return Object.keys(grouped).sort().map(key => {
+      const [y, m, d] = key.split('-').map(Number);
+      const dateObj = new Date(y, m - 1, d || 1);
       return {
         name: mode === 'monthly' 
           ? dateObj.toLocaleDateString('id-ID', { month: 'short', year: 'numeric' }) 
@@ -66,9 +39,6 @@ export default function TrendChart({ transactions, darkMode, mode = 'daily' }) {
         total: grouped[key]
       };
     });
-
-    console.log(`[TrendChart ${mode}] Final Data:`, result);
-    return result;
   };
 
   const data = processData();
@@ -96,7 +66,7 @@ export default function TrendChart({ transactions, darkMode, mode = 'daily' }) {
               <Tooltip 
                 contentStyle={{ backgroundColor: darkMode ? '#1e293b' : '#fff', borderRadius: '8px', border: 'none' }} 
                 itemStyle={{ color: mode === 'monthly' ? '#8b5cf6' : '#3b82f6' }}
-                formatter={(value) => [`Rp ${value.toLocaleString('id-ID')}`, 'Total']}
+                formatter={(value) => [`Rp ${Number(value).toLocaleString('id-ID')}`, 'Total']}
               />
               <Area type="monotone" dataKey="total" stroke={mode === 'monthly' ? "#8b5cf6" : "#3b82f6"} strokeWidth={3} fill={`url(#colorTotal${mode})`} />
             </AreaChart>

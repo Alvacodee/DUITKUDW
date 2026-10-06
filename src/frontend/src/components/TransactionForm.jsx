@@ -1,60 +1,46 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
+import { todayLocal, parseTxDate, toDateKey } from '../utils/date';
+
+const emptyForm = () => ({
+  date: todayLocal(), // Default hari ini (YYYY-MM-DD, zona waktu lokal)
+  description: '',
+  amount: '',
+  category: 'Makan',
+  type: 'Pengeluaran'
+});
+
+// Isi form dari data transaksi yang sedang diedit.
+// Komponen ini di-remount (prop key di App) setiap item edit berganti, jadi cukup dihitung di initial state.
+const formFromTransaction = (t) => {
+  const d = parseTxDate(t);
+  return {
+    date: d ? toDateKey(d) : todayLocal(),
+    description: t.description || '',
+    amount: t.amount ?? '',
+    category: t.category || 'Lainnya',
+    type: t.type || 'Pengeluaran'
+  };
+};
 
 export default function TransactionForm({ onSubmit, initialData, isEditMode, onCancel, darkMode }) {
-  // State awal form
-  const [formData, setFormData] = useState({
-    date: new Date().toISOString().split('T')[0], // Default hari ini (YYYY-MM-DD)
-    description: '',
-    amount: '',
-    category: 'Makan',
-    type: 'Pengeluaran'
-  });
-
-  // EFFECT: ISI FORM SAAT EDIT MODE
-  useEffect(() => {
-    if (initialData) {
-      // Ambil tanggal dari DB
-      let formattedDate = new Date().toISOString().split('T')[0];
-      
-      const dateSrc = initialData.date || initialData.created_at || initialData.CreatedAt;
-      
-      if (dateSrc) {
-          const d = new Date(dateSrc);
-          // Validasi tanggal
-          if (!isNaN(d.getTime())) {
-              formattedDate = d.toISOString().split('T')[0];
-          }
-      }
-
-      setFormData({
-        date: formattedDate,
-        description: initialData.description,
-        amount: initialData.amount,
-        category: initialData.category,
-        type: initialData.type
-      });
-    }
-  }, [initialData]);
+  const [formData, setFormData] = useState(() => initialData ? formFromTransaction(initialData) : emptyForm());
+  const [submitting, setSubmitting] = useState(false);
 
   // HANDLER SUBMIT
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     // Validasi sederhana
-    if (!formData.description || !formData.amount) {
-        return alert("Harap isi keterangan dan jumlah uang!");
+    if (!formData.description.trim() || !formData.amount || Number(formData.amount) <= 0) {
+        return alert("Harap isi keterangan dan jumlah uang (lebih dari 0)!");
     }
     
-    onSubmit(formData);
+    setSubmitting(true);
+    const ok = await onSubmit(formData);
+    setSubmitting(false);
     
-    // Reset form jika mode tambah (bukan edit)
-    if (!isEditMode) {
-      setFormData({ 
-        date: new Date().toISOString().split('T')[0],
-        description: '', 
-        amount: '', 
-        category: 'Makan', 
-        type: 'Pengeluaran' 
-      }); 
+    // Reset form hanya jika berhasil disimpan & mode tambah (bukan edit)
+    if (ok && !isEditMode) {
+      setFormData(emptyForm()); 
     }
   };
 
@@ -127,7 +113,7 @@ export default function TransactionForm({ onSubmit, initialData, isEditMode, onC
                     type="number" 
                     placeholder="0"
                     value={formData.amount}
-                    onChange={(e) => setFormData({ ...formData, amount: Number(e.target.value) })}
+                    onChange={(e) => setFormData({ ...formData, amount: e.target.value === '' ? '' : Number(e.target.value) })}
                     className={inputClass}
                     min="0"
                 />
@@ -158,9 +144,10 @@ export default function TransactionForm({ onSubmit, initialData, isEditMode, onC
         <div className="flex gap-3 pt-4">
           <button 
             type="submit" 
-            className="flex-1 bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-xl font-bold transition shadow-md active:scale-95 flex justify-center items-center gap-2"
+            disabled={submitting}
+            className="flex-1 disabled:opacity-60 disabled:cursor-not-allowed bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-xl font-bold transition shadow-md active:scale-95 flex justify-center items-center gap-2"
           >
-            {isEditMode ? '💾 Simpan Perubahan' : '➕ Simpan'}
+            {submitting ? 'Menyimpan...' : (isEditMode ? '💾 Simpan Perubahan' : '➕ Simpan')}
           </button>
           
           {isEditMode && (

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Routes, Route, Navigate, useLocation, Link } from 'react-router-dom';
 import { Sun, Moon } from 'lucide-react';
 
@@ -28,12 +28,30 @@ import ResetPassword from './pages/ResetPassword';
 
 // IMPORT KONFIGURASI API
 import { API_URL } from './config';
+import { profileImageKey } from './utils/storage';
+import { parseTxDate } from './utils/date';
+
+// Login Google: backend redirect ke "/?token=...&username=...".
+// Simpan ke localStorage lalu bersihkan URL. Aman dipanggil berkali-kali (idempotent).
+const consumeAuthFromUrl = () => {
+  const queryParams = new URLSearchParams(window.location.search);
+  const tokenFromUrl = queryParams.get('token');
+  if (tokenFromUrl) {
+    localStorage.setItem('token', tokenFromUrl);
+    localStorage.setItem('username', queryParams.get('username') || 'User');
+    window.history.replaceState({}, document.title, window.location.pathname);
+  }
+};
+
+// Urutkan transaksi: tanggal terbaru dulu, lalu yang terakhir diinput
+const sortTransactions = (list) =>
+  [...list].sort((a, b) => (b.date || '').localeCompare(a.date || '') || b.ID - a.ID);
 
 function App() {
   // --- 1. STATE MANAGEMENT ---
-  const [token, setToken] = useState(localStorage.getItem('token'));
-  const [username, setUsername] = useState(localStorage.getItem('username'));
-  
+  const [token, setToken] = useState(() => { consumeAuthFromUrl(); return localStorage.getItem('token'); });
+  const [username, setUsername] = useState(() => localStorage.getItem('username'));
+
   // Data
   const [transactions, setTransactions] = useState([]);
   const [editItem, setEditItem] = useState(null);
@@ -41,7 +59,7 @@ function App() {
   // UI
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem('theme') === 'dark');
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [profileImage, setProfileImage] = useState(localStorage.getItem('profileImage'));
+  const [profileImage, setProfileImage] = useState(() => localStorage.getItem(profileImageKey(localStorage.getItem('username'))));
 
   // AI
   const [prediction, setPrediction] = useState(null);
@@ -60,6 +78,7 @@ function App() {
       case '/contact': return 'Hubungi Support';
       case '/terms': return 'Syarat Layanan';
       case '/privacy': return 'Kebijakan Privasi';
+      case '/refund': return 'Kebijakan Refund';
       case '/forgot-password': return 'Lupa Password';
       case '/reset-password': return 'Reset Password';
       default: return 'Finance AI';
@@ -67,31 +86,6 @@ function App() {
   };
 
   // --- 2. EFFECTS ---
-
-  // [PENTING] LOGIKA GOOGLE AUTH & LOAD DATA
-  useEffect(() => {
-    const queryParams = new URLSearchParams(window.location.search);
-    const tokenFromUrl = queryParams.get('token');
-    const usernameFromUrl = queryParams.get('username');
-
-    if (tokenFromUrl) {
-      localStorage.setItem('token', tokenFromUrl);
-      setToken(tokenFromUrl);
-
-      if (usernameFromUrl) {
-        localStorage.setItem('username', usernameFromUrl);
-        setUsername(usernameFromUrl);
-      } else {
-        setUsername('User');
-      }
-
-      window.history.replaceState({}, document.title, window.location.pathname);
-    } 
-    
-    if (token || tokenFromUrl) {
-      fetchTransactions(tokenFromUrl || token);
-    }
-  }, [token]);
 
   useEffect(() => {
     if (darkMode) {
@@ -105,41 +99,68 @@ function App() {
 
   // --- 3. AUTHENTICATION & API ---
 
-  const handleLogout = () => {
+  const handleLogin = (newToken, newUsername) => {
+    setToken(newToken);
+    setUsername(newUsername);
+    setProfileImage(localStorage.getItem(profileImageKey(newUsername)));
+  };
+
+  const handleLogout = useCallback(() => {
     localStorage.removeItem('token');
     localStorage.removeItem('username');
     setToken(null);
     setUsername(null);
     setTransactions([]);
-  };
+    setEditItem(null);
+    setPrediction(null);
+    setProfileImage(null);
+  }, []);
 
-  const fetchTransactions = async (tkn = token) => {
+  const fetchTransactions = useCallback(async (tkn) => {
     if (!tkn) return;
     try {
-      const res = await fetch(`${API_URL}/transactions`, { 
-        headers: { 'Authorization': `Bearer ${tkn}` } 
+      const res = await fetch(`${API_URL}/transactions`, {
+        headers: { 'Authorization': `Bearer ${tkn}` }
       });
       if (res.status === 401) { handleLogout(); return; }
       const data = await res.json();
-      if (data.data) setTransactions(data.data.sort((a, b) => b.ID - a.ID));
+      if (Array.isArray(data.data)) setTransactions(sortTransactions(data.data));
     } catch (e) { console.error(e); }
-  };
+  }, [handleLogout]);
 
+  // Load data setiap kali token berubah (login biasa / Google / refresh halaman)
+  useEffect(() => {
+    if (token) fetchTransactions(token);
+  }, [token, fetchTransactions]);
+
+  // Return true jika berhasil, agar form tahu kapan harus di-reset
   const handleFormSubmit = async (formData) => {
     const url = editItem ? `${API_URL}/transactions/${editItem.ID}` : `${API_URL}/transactions`;
     const method = editItem ? 'PUT' : 'POST';
     try {
-      const res = await fetch(url, { 
-        method, 
-        headers: { 
-            'Content-Type': 'application/json', 
-            'Authorization': `Bearer ${token}` 
-        }, 
-        body: JSON.stringify({ ...formData, amount: parseInt(formData.amount) }) 
+      const res = await fetch(url, {
+        method,
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ ...formData, amount: parseInt(formData.amount, 10) })
       });
-      if (res.status === 401) { handleLogout(); return; }
-      if (res.ok) { fetchTransactions(); setEditItem(null); setPrediction(null); }
-    } catch (e) { console.error(e); }
+      if (res.status === 401) { handleLogout(); return false; }
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        alert(data.error || 'Gagal menyimpan transaksi.');
+        return false;
+      }
+      await fetchTransactions(token);
+      setEditItem(null);
+      setPrediction(null);
+      return true;
+    } catch (e) {
+      console.error(e);
+      alert('Gagal menghubungi server.');
+      return false;
+    }
   };
 
   const handleDelete = async (id) => {
@@ -149,8 +170,15 @@ function App() {
         headers: { 'Authorization': `Bearer ${token}` } 
       });
       if (res.status === 401) { handleLogout(); return; }
-      if (res.ok) { fetchTransactions(); setPrediction(null); }
-    } catch (e) { console.error(e); }
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        alert(data.error || 'Gagal menghapus transaksi.');
+        return;
+      }
+      if (editItem?.ID === id) setEditItem(null);
+      fetchTransactions(token);
+      setPrediction(null);
+    } catch (e) { console.error(e); alert('Gagal menghubungi server.'); }
   };
 
   // --- 4. LOGIKA AI ---
@@ -172,11 +200,22 @@ function App() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Gagal mengambil prediksi");
 
-      const trendIcon = data.trend === 'naik' ? '📈' : '📉';
-      
+      // Data belum cukup / kosong: backend tetap 200 tapi tanpa prediksi bermakna
+      if (data.status !== 'success') {
+        setPrediction({
+          prediction: data.prediction || 0,
+          status: 'Data Belum Cukup ⏳',
+          message: data.message || 'Tambahkan lebih banyak transaksi pengeluaran.'
+        });
+        return;
+      }
+
+      const trend = data.trend || 'flat';
+      const trendIcon = trend === 'naik' ? '📈' : trend === 'turun' ? '📉' : '➖';
+
       setPrediction({
         prediction: data.prediction,
-        status: `Tren ${data.trend.charAt(0).toUpperCase() + data.trend.slice(1)} ${trendIcon}`,
+        status: `Tren ${trend.charAt(0).toUpperCase() + trend.slice(1)} ${trendIcon}`,
         message: data.message
       });
 
@@ -265,8 +304,8 @@ function App() {
           <Routes>
             
             {/* --- HALAMAN PUBLIC (Bisa diakses tanpa login) --- */}
-            <Route path="/forgot-password" element={<ForgotPassword />} />
-            <Route path="/reset-password" element={<ResetPassword />} />
+            <Route path="/forgot-password" element={<ForgotPassword darkMode={darkMode} setDarkMode={setDarkMode} />} />
+            <Route path="/reset-password" element={<ResetPassword darkMode={darkMode} setDarkMode={setDarkMode} />} />
             <Route path="/terms" element={<TermsPage darkMode={darkMode} />} />
             <Route path="/privacy" element={<PrivacyPage darkMode={darkMode} />} />
             <Route path="/refund" element={<RefundPage darkMode={darkMode} />} />
@@ -292,14 +331,10 @@ function App() {
                     </div>
                     <div className="space-y-3">
                       {transactions.slice(0, 10).map((t) => {
-                          const dateSource = t.date || t.created_at || t.CreatedAt;
-                          let displayDate = '-';
-                          if (dateSource) {
-                              const dateObj = new Date(dateSource);
-                              if (!isNaN(dateObj.getTime())) {
-                                  displayDate = dateObj.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
-                              }
-                          }
+                          const dateObj = parseTxDate(t);
+                          const displayDate = dateObj
+                            ? dateObj.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })
+                            : '-';
                           const isIncome = t.type === 'Pemasukan';
                           return (
                             <div key={t.ID} className={`flex justify-between items-center p-3 rounded-lg border ${darkMode ? 'border-slate-700 bg-slate-900/50' : 'border-slate-100 bg-slate-50'}`}>
@@ -308,7 +343,7 @@ function App() {
                                 <p className="text-xs opacity-70">{t.category} • {displayDate}</p>
                               </div>
                               <span className={`font-bold text-sm ${isIncome ? 'text-emerald-500' : 'text-rose-500'}`}>
-                                {isIncome ? '+' : '-'} Rp {t.amount.toLocaleString('id-ID')}
+                                {isIncome ? '+' : '-'} Rp {Number(t.amount || 0).toLocaleString('id-ID')}
                               </span>
                             </div>
                           );
@@ -319,10 +354,7 @@ function App() {
                 </div>
               ) : (
                 // AUTH FORM
-                <AuthForm onLogin={(t) => { 
-                  setToken(t); 
-                  setUsername(localStorage.getItem('username')); 
-                }} />
+                <AuthForm onLogin={handleLogin} darkMode={darkMode} setDarkMode={setDarkMode} />
               )
             } />
 
@@ -340,7 +372,7 @@ function App() {
                        </div>
                     </div>
                     <div className="w-full">
-                      <TransactionForm onSubmit={handleFormSubmit} initialData={editItem} isEditMode={!!editItem} onCancel={() => setEditItem(null)} darkMode={darkMode} />
+                      <TransactionForm key={editItem?.ID ?? 'new'} onSubmit={handleFormSubmit} initialData={editItem} isEditMode={!!editItem} onCancel={() => setEditItem(null)} darkMode={darkMode} />
                     </div>
                     <div className="w-full">
                        <TransactionList transactions={transactions} onEdit={setEditItem} onDelete={handleDelete} editId={editItem?.ID} darkMode={darkMode} />

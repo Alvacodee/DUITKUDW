@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
+import { parseTxDate, todayLocal } from '../utils/date';
 
 export default function TransactionList({ transactions, onEdit, onDelete, editId, darkMode }) {
   const [currentPage, setCurrentPage] = useState(1);
@@ -8,15 +9,16 @@ export default function TransactionList({ transactions, onEdit, onDelete, editId
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [deleteTargetId, setDeleteTargetId] = useState(null);
 
-  // PAGINATION
-  const indexOfLastItem = currentPage * itemsPerPage;
+  // PAGINATION (data sudah diurutkan per tanggal oleh App)
+  const totalPages = Math.max(1, Math.ceil(transactions.length / itemsPerPage));
+  // Jika data berkurang (mis. setelah hapus) dan halaman aktif jadi kosong, pakai halaman terakhir
+  const page = Math.min(currentPage, totalPages);
+  const indexOfLastItem = page * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-  const sortedTransactions = [...transactions].sort((a, b) => b.ID - a.ID);
-  const currentItems = sortedTransactions.slice(indexOfFirstItem, indexOfLastItem);
-  const totalPages = Math.ceil(transactions.length / itemsPerPage);
+  const currentItems = transactions.slice(indexOfFirstItem, indexOfLastItem);
 
-  const nextPage = () => { if (currentPage < totalPages) setCurrentPage(currentPage + 1); };
-  const prevPage = () => { if (currentPage > 1) setCurrentPage(currentPage - 1); };
+  const nextPage = () => { if (page < totalPages) setCurrentPage(page + 1); };
+  const prevPage = () => { if (page > 1) setCurrentPage(page - 1); };
 
   // DELETE HANDLER
   
@@ -55,8 +57,8 @@ export default function TransactionList({ transactions, onEdit, onDelete, editId
     if (!transactions || transactions.length === 0) { alert("Belum ada data!"); return; }
     const headers = ["Tanggal,Keterangan,Kategori,Tipe,Jumlah"];
     const rows = transactions.map(t => {
-      const dateSrc = t.date || t.created_at || t.CreatedAt;
-      const date = dateSrc ? new Date(dateSrc).toLocaleDateString('id-ID') : '-';
+      const d = parseTxDate(t);
+      const date = d ? d.toLocaleDateString('id-ID') : '-';
       const cleanDesc = t.description ? `"${t.description.replace(/"/g, '""')}"` : '""';
       return `${date},${cleanDesc},${t.category},${t.type},${t.amount}`;
     });
@@ -65,10 +67,11 @@ export default function TransactionList({ transactions, onEdit, onDelete, editId
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.setAttribute('download', `Laporan_Keuangan_${new Date().toISOString().split('T')[0]}.csv`);
+    link.setAttribute('download', `Laporan_Keuangan_${todayLocal()}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   return (
@@ -104,12 +107,8 @@ export default function TransactionList({ transactions, onEdit, onDelete, editId
           <tbody className={`divide-y ${darkMode ? 'divide-slate-700' : 'divide-slate-100'}`}>
             {currentItems.length > 0 ? (
               currentItems.map((t) => {
-                 const dateSrc = t.date || t.created_at || t.CreatedAt;
-                 let validDate = '-';
-                 if (dateSrc) {
-                    const d = new Date(dateSrc);
-                    if(!isNaN(d.getTime())) validDate = d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
-                 }
+                 const d = parseTxDate(t);
+                 const validDate = d ? d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '-';
                  
                  return (
                 <tr key={t.ID} className={`transition duration-150 ${editId === t.ID ? (darkMode ? 'bg-yellow-900/20' : 'bg-yellow-50') : (darkMode ? 'hover:bg-slate-700/50' : 'hover:bg-slate-50')}`}>
@@ -122,7 +121,7 @@ export default function TransactionList({ transactions, onEdit, onDelete, editId
                     </span>
                   </td>
                   <td className={`p-5 text-right font-bold whitespace-nowrap ${t.type === 'Pemasukan' ? 'text-emerald-500' : 'text-rose-500'}`}>
-                    {t.type === 'Pemasukan' ? '+ ' : '- '}Rp {t.amount.toLocaleString('id-ID')}
+                    {t.type === 'Pemasukan' ? '+ ' : '- '}Rp {Number(t.amount || 0).toLocaleString('id-ID')}
                   </td>
 
                   <td className="p-5 text-center">
@@ -182,9 +181,9 @@ export default function TransactionList({ transactions, onEdit, onDelete, editId
       {/* FOOTER PAGINATION */}
       {transactions.length > itemsPerPage && (
         <div className={`p-4 border-t flex justify-between items-center ${darkMode ? 'border-slate-700 bg-slate-800/50' : 'border-slate-100 bg-white'}`}>
-          <button onClick={prevPage} disabled={currentPage === 1} className={`px-4 py-2 rounded-xl text-sm font-medium transition ${currentPage === 1 ? 'opacity-50 cursor-not-allowed bg-slate-100 dark:bg-slate-700 text-slate-400' : 'hover:bg-blue-100 dark:hover:bg-slate-700 text-blue-600 dark:text-blue-400'}`}>← Sebelumnya</button>
-          <span className={`text-sm font-medium ${darkMode ? 'text-slate-400' : 'text-slate-600'}`}>Halaman {currentPage} / {totalPages}</span>
-          <button onClick={nextPage} disabled={currentPage === totalPages} className={`px-4 py-2 rounded-xl text-sm font-medium transition ${currentPage === totalPages ? 'opacity-50 cursor-not-allowed bg-slate-100 dark:bg-slate-700 text-slate-400' : 'hover:bg-blue-100 dark:hover:bg-slate-700 text-blue-600 dark:text-blue-400'}`}>Selanjutnya →</button>
+          <button onClick={prevPage} disabled={page === 1} className={`px-4 py-2 rounded-xl text-sm font-medium transition ${page === 1 ? 'opacity-50 cursor-not-allowed bg-slate-100 dark:bg-slate-700 text-slate-400' : 'hover:bg-blue-100 dark:hover:bg-slate-700 text-blue-600 dark:text-blue-400'}`}>← Sebelumnya</button>
+          <span className={`text-sm font-medium ${darkMode ? 'text-slate-400' : 'text-slate-600'}`}>Halaman {page} / {totalPages}</span>
+          <button onClick={nextPage} disabled={page === totalPages} className={`px-4 py-2 rounded-xl text-sm font-medium transition ${page === totalPages ? 'opacity-50 cursor-not-allowed bg-slate-100 dark:bg-slate-700 text-slate-400' : 'hover:bg-blue-100 dark:hover:bg-slate-700 text-blue-600 dark:text-blue-400'}`}>Selanjutnya →</button>
         </div>
       )}
 
