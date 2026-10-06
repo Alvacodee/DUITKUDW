@@ -2,7 +2,7 @@
 
 ![DUITKUDW Banner](./finance-tracker/frontend/src/assets/banner.png)
 
-**DuitKuDW** adalah aplikasi pencatatan keuangan yang dirancang untuk membantu pengguna terutama mahasiswa mengelola keuangan pribadi. Aplikasi ini tidak hanya mencatat transaksi, tetapi juga dilengkapi dengan **AI Financial Consultant** yang mampu memprediksi pengeluaran bulan depan menggunakan algoritma *Machine Learning* yang adaptif.
+**DuitKuDW** adalah pencatatan keuangan yang dirancang untuk membantu pengguna terutama mahasiswa mengelola keuangan pribadi. Aplikasi ini tidak hanya mencatat transaksi, tetapi juga dilengkapi dengan **AI Financial Consultant** yang mampu memprediksi pengeluaran bulan depan menggunakan algoritma *Machine Learning* yang adaptif.
 
 ---
 
