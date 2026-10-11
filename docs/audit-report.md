@@ -4,7 +4,7 @@
 > **Cakupan:** seluruh repository `D:\DUITKUDW` — backend Go (`src/backend`), ML Python (`src/backend/ml`), frontend React (`src/frontend`), konfigurasi Docker/infra, serta perubahan yang **belum di-commit** di working tree (refactor UI frontend).
 > **Metode:** static review manual seluruh source file, `git diff` terhadap `HEAD`, `go vet ./...` (lulus, tanpa temuan), dan `npx eslint .` (gagal, 9 error). Aplikasi **tidak dijalankan** — temuan runtime disimpulkan dari pembacaan kode dan ditandai bila perlu diverifikasi.
 > **Status kode:** tidak ada file yang diubah selama audit.
-> **Basis audit:** commit `9787a54` + perubahan UI yang belum di-commit. Setelah audit ditemukan bahwa `origin/main` sudah maju 6 commit (`66b5ba1`…`150aeed`) yang memperbaiki sebagian temuan. Status terkini setiap temuan ada di [Bagian 0](#0-pelacak-status-temuan); detail perbaikan per fase ada di [`docs/`](./README.md).
+> **Basis audit:** commit `fc97cdd` + perubahan UI yang belum di-commit. Setelah audit ditemukan bahwa `origin/main` sudah maju 6 commit (`85a13e3`…`8b0592a`) yang memperbaiki sebagian temuan. Status terkini setiap temuan ada di [Bagian 0](#0-pelacak-status-temuan); detail perbaikan per fase ada di [`docs/`](./README.md).
 
 ---
 
@@ -27,7 +27,7 @@
 
 Tabel ini diperbarui setiap kali satu fase selesai.
 
-> **Status akhir (setelah Fase 3):** semua temuan berstatus ✅ kecuali dua tindakan manual 👤: **rotasi password DB lama (SEC-01)** dan **mengganti `JWT_SECRET` yang terlalu pendek (SEC-10)**. Rekomendasi arsitektur lanjutan ada di [fase-3-penyempurnaan.md](./fase-3-penyempurnaan.md#rekomendasi-arsitektur-belum-dikerjakan). Kolom **Ditutup oleh** merujuk ke commit/fase yang menyelesaikan temuan.
+> **Status akhir (setelah Fase 3):** semua temuan berstatus ✅. Tindakan manual (riwayat git, `JWT_SECRET`, konflik port lokal, email tanpa SMTP) diselesaikan di [tindakan-manual.md](./tindakan-manual.md). Rekomendasi arsitektur lanjutan ada di [fase-3-penyempurnaan.md](./fase-3-penyempurnaan.md#rekomendasi-arsitektur-belum-dikerjakan). Kolom **Ditutup oleh** merujuk ke commit/fase yang menyelesaikan temuan.
 
 **Legenda:** ✅ selesai · 🟡 sebagian (sisa pekerjaan dijelaskan) · ⏳ belum · 👤 butuh tindakan manual pemilik repo
 
@@ -35,20 +35,20 @@ Tabel ini diperbarui setiap kali satu fase selesai.
 
 | ID | Status | Ditutup oleh | Catatan |
 |---|:-:|---|---|
-| SEC-01 | 🟡👤 | `66b5ba1` (remote), Fase 0 | Hardcode dihapus, `*.zip` di-ignore. Password lama tidak berlaku di Postgres lokal, tetapi **masih ada di riwayat git — pastikan tidak dipakai di mana pun / rotasi.** |
-| SEC-02 | ✅ | `66b5ba1` (remote) | State OAuth acak via cookie `HttpOnly`. |
+| SEC-01 | ✅ | Fase 0 + [tindak lanjut](./tindakan-manual.md) | Hardcode dihapus; password dihapus dari seluruh riwayat git (filter-repo + force-push `main` & `v1.0`). Tidak dipakai di konfigurasi mana pun. |
+| SEC-02 | ✅ | `85a13e3` (remote) | State OAuth acak via cookie `HttpOnly`. |
 | SEC-03 | ✅ | Fase 0 | Kode login sekali pakai via fragment URL + `POST /auth/google/exchange`. |
-| SEC-04 | ✅ | `66b5ba1` + Fase 1 | `email_verified` + verifikasi email; akun belum terverifikasi diamankan saat login Google. |
-| SEC-05 | ✅ | `66b5ba1` (remote) | Status HTTP, error decode, dan email kosong dicek. |
-| SEC-06 | ✅ | `81c59a5` + Fase 1 | Rate limit per IP/akun/user + batas konkurensi Python. In-memory (single instance). |
-| SEC-07 | ✅ | `66b5ba1` (remote) | Pesan lupa-password seragam. |
-| SEC-08 | ✅ | `81c59a5` (remote) | stderr Python tidak lagi dikirim ke klien. |
+| SEC-04 | ✅ | `85a13e3` + Fase 1 | `email_verified` + verifikasi email; akun belum terverifikasi diamankan saat login Google. |
+| SEC-05 | ✅ | `85a13e3` (remote) | Status HTTP, error decode, dan email kosong dicek. |
+| SEC-06 | ✅ | `436e3c9` + Fase 1 | Rate limit per IP/akun/user + batas konkurensi Python. In-memory (single instance). |
+| SEC-07 | ✅ | `85a13e3` (remote) | Pesan lupa-password seragam. |
+| SEC-08 | ✅ | `436e3c9` (remote) | stderr Python tidak lagi dikirim ke klien. |
 | SEC-09 | ✅ | Fase 1 | `auth.ValidatePassword` / `ValidateUsername` di server. |
-| SEC-10 | ✅👤 | Fase 1 | `token_version` + claim `ver`; peringatan secret < 32 karakter. **`JWT_SECRET` lokal hanya 14 karakter — ganti.** |
+| SEC-10 | ✅ | Fase 1 + [tindak lanjut](./tindakan-manual.md) | `token_version` + claim `ver`; `JWT_SECRET` lokal diganti 64 karakter acak. |
 | SEC-11 | ✅ | Fase 1 | Reset/verify/login token disimpan sebagai SHA-256. |
 | SEC-12 | ✅ | Fase 2 | Docker multi-stage non-root, uv di-pin, security header nginx, Postgres hanya localhost, trusted proxies. |
 | SEC-13 | ✅ | Fase 2 | `lib/csv.js` menetralkan formula. |
-| SEC-14 | ✅ | `0ea6637` + Fase 2 | Profil, foto, anggaran, target per user + migrasi data lama. |
+| SEC-14 | ✅ | `8d3ee70` + Fase 2 | Profil, foto, anggaran, target per user + migrasi data lama. |
 | SEC-15 | ✅ | Fase 3 | `json:"-"`. |
 | SEC-16 | ✅ | — | `DUITKUDW.zip` sudah dihapus pemilik repo. |
 
@@ -56,24 +56,24 @@ Tabel ini diperbarui setiap kali satu fase selesai.
 
 | ID | Status | Ditutup oleh | Catatan |
 |---|:-:|---|---|
-| BUG-01 | ✅ | merge `e1f3dae` | Route publik dikembalikan. |
-| BUG-02 | ✅ | `0ea6637` + `81c59a5` | Email wajib di form & server. |
+| BUG-01 | ✅ | merge `fa7761c` | Route publik dikembalikan. |
+| BUG-02 | ✅ | `8d3ee70` + `436e3c9` | Email wajib di form & server. |
 | BUG-03 | ✅ | Fase 1 | `lib/format.js` di Dashboard & Laporan. |
-| BUG-04 | ✅ | `81c59a5` (remote) | Dibandingkan dengan 30 hari terakhir. |
-| BUG-05 | ✅ | `81c59a5` + merge | Go & frontend memeriksa `status`. |
-| BUG-06 | ✅ | `81c59a5` + Fase 1 | `PredictionCard` memakai `trend` eksplisit. |
-| BUG-07 | ✅ | `66b5ba1`, `81c59a5` | |
+| BUG-04 | ✅ | `436e3c9` (remote) | Dibandingkan dengan 30 hari terakhir. |
+| BUG-05 | ✅ | `436e3c9` + merge | Go & frontend memeriksa `status`. |
+| BUG-06 | ✅ | `436e3c9` + Fase 1 | `PredictionCard` memakai `trend` eksplisit. |
+| BUG-07 | ✅ | `85a13e3`, `436e3c9` | |
 | BUG-08 | ✅ | Fase 2 | Path script/python dari config (cwd → executable → env). |
 | BUG-09 | ✅ | Fase 2 | `FRONTEND_URL` wajib di production. |
-| BUG-10 | ✅ | `66b5ba1` (remote) | |
+| BUG-10 | ✅ | `85a13e3` (remote) | |
 | BUG-11 | ✅ | merge + Fase 2 | Semua halaman memakai `ThemeProvider`. |
-| BUG-12 | ✅ | `0ea6637` + merge | |
-| BUG-13 | ✅ | `0ea6637` + merge | |
+| BUG-12 | ✅ | `8d3ee70` + merge | |
+| BUG-13 | ✅ | `8d3ee70` + merge | |
 | BUG-14 | ✅ | Fase 2 | Arus kas bulan ini + `ChangeIndicator`. |
-| BUG-15 | ✅ | `66b5ba1`, `81c59a5` | |
-| BUG-16 | ✅ | `0ea6637` + merge | |
+| BUG-15 | ✅ | `85a13e3`, `436e3c9` | |
+| BUG-16 | ✅ | `8d3ee70` + merge | |
 | BUG-17 | ✅ | Fase 2 | Semua parsing tanggal lewat `lib/date.js`. |
-| BUG-18 | ✅ | `0ea6637` + merge | |
+| BUG-18 | ✅ | `8d3ee70` + merge | |
 | BUG-19 | ✅ | Fase 2 | Tren `flat`, clip negatif. |
 | BUG-20 *(baru)* | ✅ | Fase 0 | Lookup email Google memakai `LOWER(email)`. |
 | BUG-21 *(baru)* | ✅ | Fase 2 | DSN berbasis URL + unit test. |
@@ -85,13 +85,13 @@ Tabel ini diperbarui setiap kali satu fase selesai.
 | CS-01 | ✅ | Fase 2 | Modul `lib/` & `constants/` bersama. |
 | CS-02 | ✅ | Fase 2 | `api/client`, hooks, halaman diekstrak; App ±190 baris. |
 | CS-03 | ✅ | Fase 1 + Fase 2 | Satu gaya akses DB (GORM); auth di `handlers/`. |
-| CS-04 | ✅ | `81c59a5` (remote) | Helper `currentUser`. |
+| CS-04 | ✅ | `436e3c9` (remote) | Helper `currentUser`. |
 | CS-05 | ✅ | Fase 2 | `config.App`. |
 | CS-06 | ✅ | Fase 2 | `predict.py` modular + unit test. |
 | CS-07 | ✅ | Fase 2 | ESLint 0 error tanpa pengecualian huruf kapital. |
 | CS-08 | ✅ | Fase 1 + Fase 2 | Test Go/Python/JS + GitHub Actions CI. |
 | CS-09 | ✅ | Fase 3 | Scaffolding dihapus, README backend/frontend diisi. |
-| CS-10 | ✅ | `66b5ba1` + Fase 2 | Dependensi npm tak terpakai dihapus; `npm audit` 0. |
+| CS-10 | ✅ | `85a13e3` + Fase 2 | Dependensi npm tak terpakai dihapus; `npm audit` 0. |
 | CS-11 | ✅ | Fase 1–3 | API usang & magic number diganti konstanta; logging via `log`. |
 | CS-12 | ✅ | Fase 2 + Fase 3 | Validasi, batas panjang, index, paginasi opsional. Migrasi kolom `date` ke tipe DATE = rekomendasi. |
 

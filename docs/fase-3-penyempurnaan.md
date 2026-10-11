@@ -40,4 +40,4 @@ Item 15 di rencana audit bersifat **pertimbangan**, bukan perbaikan bug, dan but
 | Paginasi `?limit=3&offset=1` → 3 item | ✅ |
 | Respons transaksi tidak berisi `password` | ✅ |
 | Deskripsi > 200 karakter → 400 | ✅ |
-| GitHub Actions CI (commit Fase 2 `5319237`) | ✅ lulus |
+| GitHub Actions CI (commit Fase 2 `756dd39`) | ✅ lulus |

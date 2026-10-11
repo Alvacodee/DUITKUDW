@@ -6,11 +6,11 @@
 
 ## Konteks: sinkronisasi sebelum Fase 0
 
-Saat fase ini dimulai, branch lokal tertinggal 6 commit dari `origin/main` (`66b5ba1`…`150aeed`). Commit-commit tersebut sudah memperbaiki sebagian temuan audit, sementara redesign UI lokal belum di-commit dan bentrok di 11 file frontend. Penyelesaiannya:
+Saat fase ini dimulai, branch lokal tertinggal 6 commit dari `origin/main` (`85a13e3`…`8b0592a`). Commit-commit tersebut sudah memperbaiki sebagian temuan audit, sementara redesign UI lokal belum di-commit dan bentrok di 11 file frontend. Penyelesaiannya:
 
-1. Redesign UI disimpan sebagai commit `4d93203` di branch `wip/ui-redesign`.
+1. Redesign UI disimpan sebagai commit `b9823e5` di branch `wip/ui-redesign`.
 2. `main` di-fast-forward ke `origin/main`.
-3. Branch redesign di-merge (`e1f3dae`). Untuk file yang bentrok, versi redesign dipakai sebagai basis, lalu perbaikan dari remote diporting ke dalamnya. Daftar lengkapnya ada di pesan commit merge.
+3. Branch redesign di-merge (`fa7761c`). Untuk file yang bentrok, versi redesign dipakai sebagai basis, lalu perbaikan dari remote diporting ke dalamnya. Daftar lengkapnya ada di pesan commit merge.
 
 Dengan merge tersebut, temuan **BUG-01** (route publik hilang) dan **BUG-02** (register tanpa email) ikut tertutup.
 
@@ -72,6 +72,6 @@ Alur penuh Google OAuth (redirect ke Google) tidak bisa diuji otomatis tanpa kre
 
 ## Catatan & tindakan manual
 
-- 👤 **Rotasi password database (SEC-01).** Password lama tetap ada di riwayat git (`9787a54` dan sebelumnya). Saat verifikasi, password tersebut ternyata **tidak berlaku** di PostgreSQL lokal, tetapi tetap perlu dipastikan tidak dipakai di environment lain. Membersihkan riwayat git (`git filter-repo`) adalah operasi destruktif yang mengubah semua hash commit, jadi tidak dilakukan otomatis.
+- 👤 **Rotasi password database (SEC-01).** Password lama tetap ada di riwayat git (`fc97cdd` dan sebelumnya). Saat verifikasi, password tersebut ternyata **tidak berlaku** di PostgreSQL lokal, tetapi tetap perlu dipastikan tidak dipakai di environment lain. Membersihkan riwayat git (`git filter-repo`) adalah operasi destruktif yang mengubah semua hash commit, jadi tidak dilakukan otomatis.
 - **Kompatibilitas deploy.** Frontend dan backend harus di-deploy bersamaan: frontend lama mengharapkan `?token=`, sedangkan backend baru mengirim `#login_code=`.
 - **Temuan baru dari verifikasi (BUG-21, dikerjakan di Fase 2).** Bila `DB_PASSWORD` kosong, DSN key-value `password= dbname=…` di-parse salah sehingga nama database hilang dan koneksi gagal.

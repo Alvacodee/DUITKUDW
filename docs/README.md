@@ -7,3 +7,4 @@
 | [fase-1-keamanan-dan-akurasi.md](./fase-1-keamanan-dan-akurasi.md) | Pre-hijacking & verifikasi email, rate limiting, versi token, kebijakan password, format rupiah bertanda |
 | [fase-2-refactor-dan-hardening.md](./fase-2-refactor-dan-hardening.md) | Config terpusat, modul bersama & hooks frontend, normalisasi data, Docker non-root, security header, test & CI |
 | [fase-3-penyempurnaan.md](./fase-3-penyempurnaan.md) | Konsistensi API & UI, kebersihan kode, README, rekomendasi arsitektur lanjutan |
+| [tindakan-manual.md](./tindakan-manual.md) | Penghapusan password dari riwayat git, JWT_SECRET baru, konflik port lokal, MAIL_MODE=log, cara menjalankan di lokal |

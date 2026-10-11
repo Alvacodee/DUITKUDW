@@ -26,7 +26,14 @@ type AppConfig struct {
 	PredictScript         string        // ML_SCRIPT (default: ml/predict.py relatif ke direktori kerja / executable)
 	PredictTimeout        time.Duration // PREDICT_TIMEOUT_SECONDS (default 60)
 	PredictMaxConcurrency int           // PREDICT_MAX_CONCURRENCY (default 2)
+
+	MailMode string // MAIL_MODE: "smtp" (default) atau "log" (development tanpa SMTP)
 }
+
+const (
+	MailModeSMTP = "smtp"
+	MailModeLog  = "log"
+)
 
 var App AppConfig
 
@@ -50,6 +57,15 @@ func Load() {
 		}
 		App.FrontendURL = devFrontendURL
 		log.Printf("⚠️  FRONTEND_URL kosong, memakai default development %s", devFrontendURL)
+	}
+
+	App.MailMode = getEnv("MAIL_MODE", MailModeSMTP)
+	switch {
+	case App.MailMode == MailModeLog:
+		// Link verifikasi/reset password muncul di log: hanya untuk development
+		log.Println("⚠️  MAIL_MODE=log: email TIDAK dikirim, link dicetak ke log. Jangan dipakai di server publik.")
+	case os.Getenv("SMTP_HOST") == "" || os.Getenv("SMTP_EMAIL") == "":
+		log.Println("⚠️  SMTP_HOST/SMTP_EMAIL kosong: email verifikasi & reset password tidak akan terkirim (gunakan MAIL_MODE=log untuk development)")
 	}
 
 	App.PredictScript = getEnv("ML_SCRIPT", findPredictScript())

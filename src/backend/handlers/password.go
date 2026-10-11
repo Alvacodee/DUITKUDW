@@ -48,7 +48,12 @@ func sendEmail(to, subject, htmlBody string) error {
 }
 
 // Kirim email di background; hasilnya hanya dicatat di log server.
-func sendEmailAsync(to, subject, htmlBody string) {
+// MAIL_MODE=log (khusus development tanpa SMTP): email tidak dikirim, link aksinya dicetak ke log.
+func sendEmailAsync(to, subject, htmlBody, link string) {
+	if config.App.MailMode == config.MailModeLog {
+		log.Printf("📧 [MAIL_MODE=log] Untuk: %s | %s | Link: %s", to, subject, link)
+		return
+	}
 	go func() {
 		if err := sendEmail(to, subject, htmlBody); err != nil {
 			log.Printf("❌ Gagal kirim email ke %s: %v", to, err)
@@ -102,7 +107,7 @@ func SendVerificationEmail(user models.User) {
 		"Verifikasi Alamat Email",
 		"Terima kasih telah mendaftar di DuitKuDW. Klik tombol di bawah untuk memverifikasi email Anda.",
 		"Verifikasi Email", link, "Link ini berlaku selama 24 jam.",
-	))
+	), link)
 }
 
 // POST /verify-email {"token": "..."}
@@ -181,7 +186,7 @@ func ForgotPassword(c *gin.Context) {
 		"Permintaan Reset Password",
 		"Kami menerima permintaan untuk mereset password akun DuitKuDW Anda. Klik tombol di bawah ini untuk membuat password baru.",
 		"Reset Password Sekarang", link, "Link ini hanya berlaku selama 1 jam.",
-	))
+	), link)
 
 	c.JSON(http.StatusOK, gin.H{"message": genericMsg})
 }

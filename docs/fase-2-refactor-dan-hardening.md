@@ -45,7 +45,7 @@
 | `src/backend/Dockerfile` | Multi-stage: binary Go statis → runtime `python:3.13-slim`. `uv` di-pin `0.9.10`, `GIN_MODE=release`, **user non-root** (uid 10001). Image tidak lagi membawa toolchain Go. |
 | `src/frontend/nginx.conf` + `nginx-security-headers.conf` | CSP, `X-Frame-Options: DENY`, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`, `server_tokens off`; aset ber-hash di-cache 1 tahun, `index.html` `no-cache`. |
 | `docker-compose.yml` | Port Postgres hanya terikat ke `127.0.0.1`; `GIN_MODE=release`, `TRUSTED_PROXIES=none`, `DB_SSLMODE`; `ALLOW_ORIGIN` (tidak pernah dibaca) dan kunci `version` yang usang dihapus. |
-| `.env.example` | Ditulis ulang dengan placeholder dan penjelasan setiap variabel. Versi lama yang dihapus di `d2dec80` sudah diperiksa: isinya placeholder, bukan kredensial asli. |
+| `.env.example` | Ditulis ulang dengan placeholder dan penjelasan setiap variabel. Versi lama yang dihapus di `e0be93a` sudah diperiksa: isinya placeholder, bukan kredensial asli. |
 | `.github/workflows/ci.yml` | Job **backend** (gofmt, vet, unit + integration test dengan service PostgreSQL, unit test Python via uv), **frontend** (lint, test, build), **docker** (build kedua image + `nginx -t`). |
 
 ## Test yang ditambahkan
@@ -78,4 +78,4 @@ Pengujian image Docker menemukan bug dari perubahan fase ini sendiri: DSN baru m
 
 - **Trusted proxy di Koyeb:** bila `TRUSTED_PROXIES` kosong, header `X-Forwarded-For` dipercaya dari mana pun (perilaku default Gin) dan backend mencetak peringatan. Akibatnya rate limit *per IP* bisa diakali dengan memalsukan header, sementara rate limit *per akun/user* dari Fase 1 tetap berlaku. Isi `TRUSTED_PROXIES` dengan rentang IP proxy platform bila diketahui.
 - **Deploy:** `GIN_MODE=release` sekarang di-set di image backend, jadi `FRONTEND_URL` wajib ada di environment deploy (sudah dipakai di Koyeb sebelumnya).
-- **CSP** mengizinkan `connect-src https:` (backend production & Formspree) dan `http://localhost:8080` (docker-compose). Bila backend lokal memakai port lain, sesuaikan `nginx-security-headers.conf`.
+- **CSP** mengizinkan `connect-src https:` (backend production & Formspree) dan `http://localhost:*` (backend lokal di port mana pun — diperbarui di [tindak lanjut](./tindakan-manual.md)).
