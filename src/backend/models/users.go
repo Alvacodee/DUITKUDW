@@ -9,7 +9,7 @@ import (
 type User struct {
 	gorm.Model
 	Username string `json:"username" gorm:"unique"`
-	Password string `json:"password"`
+	Password string `json:"-"` // hash bcrypt, tidak pernah ikut respons JSON
 	Email    string `json:"email" gorm:"unique"`
 
 	// Email terbukti milik user (login Google dengan email terverifikasi,

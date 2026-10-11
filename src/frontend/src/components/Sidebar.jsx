@@ -5,6 +5,7 @@ import {
   LogOut, Menu, Wallet,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { profileDataKey, loadUserData } from '../lib/storage';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
 
@@ -79,6 +80,8 @@ function NavItem({ item, isActive, isOpen }) {
 
 export default function Sidebar({ user, onLogout, isOpen, toggleSidebar, profileImage }) {
   const { pathname } = useLocation();
+  // Role/jurusan dari halaman Profil (dibaca ulang setiap pindah halaman)
+  const role = loadUserData(profileDataKey(user))?.role;
 
   return (
     <TooltipProvider delayDuration={0}>
@@ -142,7 +145,7 @@ export default function Sidebar({ user, onLogout, isOpen, toggleSidebar, profile
                 {isOpen && (
                   <div className="min-w-0">
                     <p className="truncate text-xs font-semibold text-white/90 leading-none">{user || 'User'}</p>
-                    <p className="text-[10px] text-white/40 mt-0.5">Mahasiswa</p>
+                    {role && <p className="truncate text-[10px] text-white/40 mt-0.5">{role}</p>}
                   </div>
                 )}
               </Link>

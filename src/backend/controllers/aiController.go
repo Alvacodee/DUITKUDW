@@ -43,7 +43,7 @@ func slots() chan struct{} {
 func PredictSpending(c *gin.Context) {
 	loggedInUser, ok := currentUser(c)
 	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": msgUnauthorized})
 		return
 	}
 

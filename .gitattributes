@@ -1,0 +1,8 @@
+# Simpan semua file teks dengan LF di repository dan working tree
+* text=auto eol=lf
+
+# Biner
+*.png binary
+*.jpg binary
+*.ico binary
+*.zip binary

@@ -9,6 +9,7 @@ import (
 	"finance-tracker-backend/config"
 	"finance-tracker-backend/models"
 	"fmt"
+	"log"
 	"math/big"
 	"net/http"
 	"net/url"
@@ -120,7 +121,7 @@ func HandleGoogleCallback(w http.ResponseWriter, r *http.Request) {
 
 	user, notice, err := findOrCreateGoogleUser(googleUser)
 	if err != nil {
-		fmt.Println("Error login Google:", err.Error())
+		log.Println("❌ Error login Google:", err)
 		redirectLoginError(w, r, "Terjadi kesalahan saat memproses akun Anda. Silakan coba lagi nanti.")
 		return
 	}
@@ -128,7 +129,7 @@ func HandleGoogleCallback(w http.ResponseWriter, r *http.Request) {
 	// Buat kode login sekali pakai; JWT baru diberikan saat frontend menukar kode ini
 	loginCode, err := issueLoginCode(user.ID)
 	if err != nil {
-		fmt.Println("Error membuat login code:", err.Error())
+		log.Println("❌ Error membuat login code:", err)
 		redirectLoginError(w, r, "Gagal membuat sesi login.")
 		return
 	}

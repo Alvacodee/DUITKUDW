@@ -88,7 +88,7 @@ export default function TransactionList({ transactions, onEdit, onDelete, editId
   // Ekspor transaksi yang sedang tampil (sesuai filter)
   const handleExport = () => {
     if (!filtered.length) return;
-    downloadTransactionsCsv(filtered, 'Laporan_Keuangan');
+    downloadTransactionsCsv(filtered);
   };
 
   /* ── Render ─────────────────────────────────────── */

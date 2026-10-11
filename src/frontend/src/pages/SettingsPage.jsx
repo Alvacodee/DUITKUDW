@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import {
   Sun, Moon, Monitor, Download, Trash2,
   ShieldCheck, Info,
@@ -5,6 +6,10 @@ import {
 import { toast } from 'sonner';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import {
+  Dialog, DialogContent, DialogHeader,
+  DialogTitle, DialogDescription,
+} from '../components/ui/dialog';
 import { cn } from '../lib/utils';
 import { useTheme } from '../theme/useTheme';
 import { downloadTransactionsCsv } from '../lib/csv';
@@ -51,6 +56,7 @@ const dangerButton =
 
 export default function SettingsPage({ transactions, storageUser, onProfileCleared }) {
   const { theme, setTheme } = useTheme();
+  const [pendingDelete, setPendingDelete] = useState(null); // baris yang menunggu konfirmasi
 
   const handleExportCSV = () => {
     if (!transactions?.length) {
@@ -135,7 +141,7 @@ export default function SettingsPage({ transactions, storageUser, onProfileClear
               label={row.label}
               description={row.description}
               action={
-                <Button variant="outline" size="sm" className={dangerButton} onClick={row.onClick}>
+                <Button variant="outline" size="sm" className={dangerButton} onClick={() => setPendingDelete(row)}>
                   <Trash2 size={13} />
                   Hapus
                 </Button>
@@ -144,6 +150,26 @@ export default function SettingsPage({ transactions, storageUser, onProfileClear
           ))}
         </CardContent>
       </Card>
+
+      <Dialog open={!!pendingDelete} onOpenChange={(o) => !o && setPendingDelete(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{pendingDelete?.label}?</DialogTitle>
+            <DialogDescription>
+              {pendingDelete?.description}. Tindakan ini tidak bisa dibatalkan.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={() => setPendingDelete(null)}>Batal</Button>
+            <Button
+              variant="destructive"
+              onClick={() => { pendingDelete.onClick(); setPendingDelete(null); }}
+            >
+              <Trash2 size={14} /> Ya, Hapus
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* ── Tentang ── */}
       <Card>

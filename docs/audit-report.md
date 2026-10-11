@@ -25,7 +25,9 @@
 
 ## 0. Pelacak Status Temuan
 
-Tabel ini diperbarui setiap kali satu fase selesai. Kolom **Ditutup oleh** merujuk ke commit/fase yang menyelesaikan temuan.
+Tabel ini diperbarui setiap kali satu fase selesai.
+
+> **Status akhir (setelah Fase 3):** semua temuan berstatus ✅ kecuali dua tindakan manual 👤: **rotasi password DB lama (SEC-01)** dan **mengganti `JWT_SECRET` yang terlalu pendek (SEC-10)**. Rekomendasi arsitektur lanjutan ada di [fase-3-penyempurnaan.md](./fase-3-penyempurnaan.md#rekomendasi-arsitektur-belum-dikerjakan). Kolom **Ditutup oleh** merujuk ke commit/fase yang menyelesaikan temuan.
 
 **Legenda:** ✅ selesai · 🟡 sebagian (sisa pekerjaan dijelaskan) · ⏳ belum · 👤 butuh tindakan manual pemilik repo
 
@@ -47,7 +49,7 @@ Tabel ini diperbarui setiap kali satu fase selesai. Kolom **Ditutup oleh** meruj
 | SEC-12 | ✅ | Fase 2 | Docker multi-stage non-root, uv di-pin, security header nginx, Postgres hanya localhost, trusted proxies. |
 | SEC-13 | ✅ | Fase 2 | `lib/csv.js` menetralkan formula. |
 | SEC-14 | ✅ | `0ea6637` + Fase 2 | Profil, foto, anggaran, target per user + migrasi data lama. |
-| SEC-15 | ⏳ | Fase 3 | |
+| SEC-15 | ✅ | Fase 3 | `json:"-"`. |
 | SEC-16 | ✅ | — | `DUITKUDW.zip` sudah dihapus pemilik repo. |
 
 ### Runtime / Logical
@@ -88,10 +90,10 @@ Tabel ini diperbarui setiap kali satu fase selesai. Kolom **Ditutup oleh** meruj
 | CS-06 | ✅ | Fase 2 | `predict.py` modular + unit test. |
 | CS-07 | ✅ | Fase 2 | ESLint 0 error tanpa pengecualian huruf kapital. |
 | CS-08 | ✅ | Fase 1 + Fase 2 | Test Go/Python/JS + GitHub Actions CI. |
-| CS-09 | ⏳ | Fase 3 | |
+| CS-09 | ✅ | Fase 3 | Scaffolding dihapus, README backend/frontend diisi. |
 | CS-10 | ✅ | `66b5ba1` + Fase 2 | Dependensi npm tak terpakai dihapus; `npm audit` 0. |
-| CS-11 | ⏳ | Fase 3 | |
-| CS-12 | 🟡 | `81c59a5` + Fase 2 + Fase 3 | Validasi & index `(user_id, date)` selesai; paginasi opsional di Fase 3. |
+| CS-11 | ✅ | Fase 1–3 | API usang & magic number diganti konstanta; logging via `log`. |
+| CS-12 | ✅ | Fase 2 + Fase 3 | Validasi, batas panjang, index, paginasi opsional. Migrasi kolom `date` ke tipe DATE = rekomendasi. |
 
 ### Inkonsistensi
 
@@ -102,8 +104,8 @@ Tabel ini diperbarui setiap kali satu fase selesai. Kolom **Ditutup oleh** meruj
 | INC-03 | ✅ | Fase 1 | Aturan password identik di frontend & backend. |
 | INC-04 | ✅ | Fase 2 | Semua halaman memakai design token. |
 | INC-05 | ✅ | Fase 2 | `ALLOW_ORIGIN` dihapus, `.env.example` lengkap. |
-| INC-06 | 🟡 | `d904325` + Fase 3 | |
-| INC-07, INC-08, INC-12, INC-13 | ⏳ | Fase 3 | |
+| INC-06 | ✅ | Fase 3 | README ditulis ulang. |
+| INC-07, INC-08, INC-12, INC-13 | ✅ | Fase 3 | FAQ AI akurat; format respons seragam (201, pesan ID); satu ekspor CSV + konfirmasi hapus; role di sidebar, `.gitattributes`. |
 | INC-09, INC-10, INC-11 | ✅ | Fase 2 | Mata uang palsu dihapus & versi dari package.json; privasi diperbarui; `pctChange` tunggal. |
 
 ---

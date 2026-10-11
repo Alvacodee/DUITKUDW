@@ -7,6 +7,7 @@ import (
 	"finance-tracker-backend/models"
 	"fmt"
 	"html"
+	"log"
 	"net/http"
 	"os"
 	"strconv"
@@ -50,9 +51,9 @@ func sendEmail(to, subject, htmlBody string) error {
 func sendEmailAsync(to, subject, htmlBody string) {
 	go func() {
 		if err := sendEmail(to, subject, htmlBody); err != nil {
-			fmt.Println("❌ Gagal kirim email ke:", to, "| Error:", err)
+			log.Printf("❌ Gagal kirim email ke %s: %v", to, err)
 		} else {
-			fmt.Println("✅ Email terkirim ke:", to)
+			log.Printf("✅ Email terkirim ke %s", to)
 		}
 	}()
 }
@@ -84,7 +85,7 @@ func SendVerificationEmail(user models.User) {
 	}
 	token, err := auth.RandomToken(32)
 	if err != nil {
-		fmt.Println("❌ Gagal membuat token verifikasi:", err)
+		log.Println("❌ Gagal membuat token verifikasi:", err)
 		return
 	}
 	err = config.DB.Model(&user).Updates(map[string]interface{}{
@@ -92,7 +93,7 @@ func SendVerificationEmail(user models.User) {
 		"verify_token_expiry": time.Now().Add(verifyTokenTTL),
 	}).Error
 	if err != nil {
-		fmt.Println("❌ Gagal menyimpan token verifikasi:", err)
+		log.Println("❌ Gagal menyimpan token verifikasi:", err)
 		return
 	}
 

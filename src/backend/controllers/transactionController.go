@@ -4,8 +4,10 @@ import (
 	"finance-tracker-backend/config"
 	"finance-tracker-backend/models"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/gin-gonic/gin"
 )
@@ -18,6 +20,15 @@ type transactionInput struct {
 	Category    string `json:"category"`
 	Type        string `json:"type"`
 }
+
+// Batas panjang input agar satu baris tidak bisa berisi teks berukuran sangat besar
+const (
+	maxDescriptionLength = 200
+	maxCategoryLength    = 50
+	maxTransactionsPage  = 500
+)
+
+const msgUnauthorized = "Sesi tidak valid, silakan login ulang"
 
 // Ambil user dari context (diisi middleware RequireAuth) tanpa risiko panic
 func currentUser(c *gin.Context) (models.User, bool) {
@@ -42,6 +53,12 @@ func bindTransactionInput(c *gin.Context) (transactionInput, string) {
 	if input.Description == "" {
 		return input, "Keterangan wajib diisi"
 	}
+	if utf8.RuneCountInString(input.Description) > maxDescriptionLength {
+		return input, "Keterangan maksimal 200 karakter"
+	}
+	if utf8.RuneCountInString(input.Category) > maxCategoryLength {
+		return input, "Kategori maksimal 50 karakter"
+	}
 	if input.Amount <= 0 {
 		return input, "Nominal harus lebih dari 0"
 	}
@@ -65,13 +82,21 @@ func bindTransactionInput(c *gin.Context) (transactionInput, string) {
 func GetTransactions(c *gin.Context) {
 	loggedInUser, ok := currentUser(c)
 	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": msgUnauthorized})
 		return
 	}
 
-	// Urutkan berdasarkan Date DESC (Terbaru di atas), lalu waktu input
+	// Urutkan berdasarkan Date DESC (Terbaru di atas), lalu waktu input.
+	// Paginasi opsional: ?limit=50&offset=100. Tanpa limit semua transaksi dikembalikan
+	// (frontend saat ini menghitung grafik & laporan dari seluruh data).
+	query := config.DB.Where("user_id = ?", loggedInUser.ID).Order("date desc, created_at desc")
+	if limit, err := strconv.Atoi(c.Query("limit")); err == nil && limit > 0 {
+		offset, _ := strconv.Atoi(c.Query("offset"))
+		query = query.Limit(min(limit, maxTransactionsPage)).Offset(max(offset, 0))
+	}
+
 	var transactions []models.Transaction
-	if err := config.DB.Where("user_id = ?", loggedInUser.ID).Order("date desc, created_at desc").Find(&transactions).Error; err != nil {
+	if err := query.Find(&transactions).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal mengambil transaksi"})
 		return
 	}
@@ -83,7 +108,7 @@ func GetTransactions(c *gin.Context) {
 func CreateTransaction(c *gin.Context) {
 	loggedInUser, ok := currentUser(c)
 	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": msgUnauthorized})
 		return
 	}
 
@@ -107,14 +132,14 @@ func CreateTransaction(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"data": transaction})
+	c.JSON(http.StatusCreated, gin.H{"data": transaction})
 }
 
 // UPDATE TRANSACTION
 func UpdateTransaction(c *gin.Context) {
 	loggedInUser, ok := currentUser(c)
 	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": msgUnauthorized})
 		return
 	}
 
@@ -149,7 +174,7 @@ func UpdateTransaction(c *gin.Context) {
 func DeleteTransaction(c *gin.Context) {
 	loggedInUser, ok := currentUser(c)
 	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": msgUnauthorized})
 		return
 	}
 
@@ -165,5 +190,5 @@ func DeleteTransaction(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"data": true})
+	c.JSON(http.StatusOK, gin.H{"message": "Transaksi dihapus"})
 }

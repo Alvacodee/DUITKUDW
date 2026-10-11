@@ -5,15 +5,15 @@ import { cn } from '../lib/utils';
 const FAQS = [
   {
     q: 'Bagaimana cara kerja prediksi AI ini?',
-    a: 'Sistem menggunakan algoritma Linear Regression yang dilatih dari riwayat pengeluaranmu. Model membaca tren bulanan dan memproyeksikan pengeluaran bulan berikutnya berdasarkan pola historis.',
+    a: 'Pengeluaran harianmu dijumlahkan lalu diproyeksikan 30 hari ke depan. Jika riwayat datamu kurang dari 60 hari, AI memakai Weighted Linear Regression (data terbaru diberi bobot lebih besar). Setelah 60 hari, AI beralih ke Holt-Winters yang bisa membaca pola bulanan seperti siklus gajian dan tagihan.',
   },
   {
     q: 'Seberapa akurat prediksinya?',
-    a: 'Akurasi meningkat seiring bertambahnya data transaksi. Dengan minimal 10 transaksi pengeluaran, akurasi prediksi sudah cukup baik. Semakin banyak data, semakin akurat.',
+    a: 'Prediksi bisa dibuat mulai dari 2 transaksi pengeluaran, tetapi masih kasar. Akurasi meningkat seiring bertambahnya riwayat — terutama setelah 60 hari, saat pola bulanan mulai terbaca. Anggap hasilnya sebagai perkiraan, bukan kepastian.',
   },
   {
     q: 'Apa yang dimaksud tren naik / turun?',
-    a: 'Tren naik berarti pengeluaranmu diprediksi meningkat dibanding bulan lalu. Tren turun berarti pengeluaranmu diprediksi berkurang — tanda kamu berhasil berhemat!',
+    a: 'Tren naik berarti arah pengeluaran harianmu sedang meningkat (atau, untuk riwayat panjang, total 30 hari ke depan diprediksi lebih besar dari 30 hari terakhir). Tren turun berarti sebaliknya — tanda kamu berhasil berhemat. Tren flat berarti pengeluaranmu stabil.',
   },
   {
     q: 'Kenapa muncul "Data tidak cukup"?',
