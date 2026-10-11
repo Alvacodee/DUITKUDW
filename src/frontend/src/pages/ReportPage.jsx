@@ -1,24 +1,18 @@
 import { useMemo } from 'react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer, Cell,
+  Tooltip, ResponsiveContainer,
 } from 'recharts';
-import { TrendingUp, TrendingDown, CalendarDays, ArrowDownLeft, ArrowUpRight, Minus } from 'lucide-react';
+import { TrendingUp, TrendingDown, ArrowDownLeft, ArrowUpRight } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
-import { Badge } from '../components/ui/badge';
+import ChangeIndicator from '../components/ChangeIndicator';
 import { cn } from '../lib/utils';
 import { formatRupiah, formatRupiahSigned } from '../lib/format';
+import { summarize, transactionsInMonth, expenseByCategory, pctChange } from '../lib/transactions';
 
-function getMonthKey(date) {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-}
-
-function getMonthLabel(key) {
-  const [year, month] = key.split('-');
-  return new Date(year, month - 1, 1).toLocaleDateString('id-ID', {
-    month: 'short', year: 'numeric',
-  });
-}
+const MONTHS_SHOWN = 6;
+const TOP_CATEGORIES = 5;
+const CAT_COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6'];
 
 const CustomTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null;
@@ -35,75 +29,60 @@ const CustomTooltip = ({ active, payload, label }) => {
 };
 
 export default function ReportPage({ transactions }) {
-  const { monthly, topCategories, thisMonthStats, lastMonthStats } = useMemo(() => {
-    const now       = new Date();
-    const thisKey   = getMonthKey(now);
-    const lastDate  = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const lastKey   = getMonthKey(lastDate);
+  const { monthly, topCategories, thisMonth, lastMonth } = useMemo(() => {
+    const now = new Date();
 
-    // Group by month
-    const byMonth = {};
-    transactions.forEach((t) => {
-      const raw = t.date || t.created_at || t.CreatedAt;
-      if (!raw) return;
-      const d = new Date(raw);
-      if (isNaN(d)) return;
-      const key = getMonthKey(d);
-      if (!byMonth[key]) byMonth[key] = { income: 0, expense: 0 };
-      if (t.type === 'Pemasukan')   byMonth[key].income  += t.amount;
-      if (t.type === 'Pengeluaran') byMonth[key].expense += t.amount;
-    });
-
-    // Monthly chart data — last 6 months
+    // Ringkasan 6 bulan terakhir (terlama -> terbaru)
     const months = [];
-    for (let i = 5; i >= 0; i--) {
-      const d   = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const key = getMonthKey(d);
-      months.push({
-        name:    getMonthLabel(key),
-        income:  byMonth[key]?.income  || 0,
-        expense: byMonth[key]?.expense || 0,
-        net:     (byMonth[key]?.income || 0) - (byMonth[key]?.expense || 0),
-      });
+    for (let offset = -(MONTHS_SHOWN - 1); offset <= 0; offset++) {
+      const { income, expense, net } = summarize(transactionsInMonth(transactions, offset, now));
+      const name = new Date(now.getFullYear(), now.getMonth() + offset, 1)
+        .toLocaleDateString('id-ID', { month: 'short', year: 'numeric' });
+      months.push({ name, income, expense, net });
     }
 
-    // Top categories this month
-    const thisExpenses = transactions.filter((t) => {
-      if (t.type !== 'Pengeluaran') return false;
-      const raw = t.date || t.created_at || t.CreatedAt;
-      if (!raw) return false;
-      const d = new Date(raw);
-      return !isNaN(d) && getMonthKey(d) === thisKey;
-    });
-
-    const catMap = thisExpenses.reduce((acc, t) => {
-      acc[t.category] = (acc[t.category] || 0) + t.amount;
-      return acc;
-    }, {});
-
-    const topCats = Object.entries(catMap)
-      .sort(([, a], [, b]) => b - a)
-      .slice(0, 5)
-      .map(([name, value]) => ({ name, value }));
-
+    const topCats  = expenseByCategory(transactionsInMonth(transactions, 0, now)).slice(0, TOP_CATEGORIES);
     const totalCat = topCats.reduce((s, c) => s + c.value, 0);
 
     return {
       monthly:       months,
       topCategories: topCats.map((c) => ({ ...c, pct: totalCat > 0 ? (c.value / totalCat) * 100 : 0 })),
-      thisMonthStats: byMonth[thisKey] || { income: 0, expense: 0 },
-      lastMonthStats: byMonth[lastKey] || { income: 0, expense: 0 },
+      thisMonth:     months[months.length - 1],
+      lastMonth:     months[months.length - 2],
     };
   }, [transactions]);
 
-  const thisNet  = thisMonthStats.income - thisMonthStats.expense;
-  const lastNet  = lastMonthStats.income - lastMonthStats.expense;
-  const netDelta = lastNet !== 0 ? ((thisNet - lastNet) / Math.abs(lastNet)) * 100 : 0;
+  const monthLabel = new Date().toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
 
-  const now        = new Date();
-  const monthLabel = now.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
-
-  const CAT_COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6'];
+  const summaryCards = [
+    {
+      label:      'Pemasukan Bulan Ini',
+      value:      thisMonth.income,
+      icon:       ArrowDownLeft,
+      color:      'text-emerald-500',
+      bg:         'bg-emerald-100 dark:bg-emerald-900/30',
+      change:     pctChange(thisMonth.income, lastMonth.income),
+      goodWhenUp: true,
+    },
+    {
+      label:      'Pengeluaran Bulan Ini',
+      value:      thisMonth.expense,
+      icon:       ArrowUpRight,
+      color:      'text-rose-500',
+      bg:         'bg-rose-100 dark:bg-rose-900/30',
+      change:     pctChange(thisMonth.expense, lastMonth.expense),
+      goodWhenUp: false,
+    },
+    {
+      label:      'Saldo Bersih',
+      value:      thisMonth.net,
+      icon:       thisMonth.net >= 0 ? TrendingUp : TrendingDown,
+      color:      thisMonth.net >= 0 ? 'text-primary' : 'text-rose-500',
+      bg:         thisMonth.net >= 0 ? 'bg-primary/10' : 'bg-rose-100 dark:bg-rose-900/30',
+      change:     pctChange(thisMonth.net, lastMonth.net),
+      goodWhenUp: true,
+    },
+  ];
 
   return (
     <div className="animate-fade-in space-y-6">
@@ -114,42 +93,8 @@ export default function ReportPage({ transactions }) {
 
       {/* ── This month summary ── */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        {[
-          {
-            label: 'Pemasukan Bulan Ini',
-            value: thisMonthStats.income,
-            icon:  ArrowDownLeft,
-            color: 'text-emerald-500',
-            bg:    'bg-emerald-100 dark:bg-emerald-900/30',
-            delta: lastMonthStats.income
-              ? ((thisMonthStats.income - lastMonthStats.income) / lastMonthStats.income) * 100
-              : 0,
-          },
-          {
-            label: 'Pengeluaran Bulan Ini',
-            value: thisMonthStats.expense,
-            icon:  ArrowUpRight,
-            color: 'text-rose-500',
-            bg:    'bg-rose-100 dark:bg-rose-900/30',
-            delta: lastMonthStats.expense
-              ? ((thisMonthStats.expense - lastMonthStats.expense) / lastMonthStats.expense) * 100
-              : 0,
-            invertDelta: true,
-          },
-          {
-            label: 'Saldo Bersih',
-            value: thisNet,
-            icon:  thisNet >= 0 ? TrendingUp : TrendingDown,
-            color: thisNet >= 0 ? 'text-primary' : 'text-rose-500',
-            bg:    thisNet >= 0 ? 'bg-primary/10' : 'bg-rose-100 dark:bg-rose-900/30',
-            delta: netDelta,
-          },
-        ].map((item) => {
-          const Icon   = item.icon;
-          const isUp   = item.delta > 1;
-          const isDown = item.delta < -1;
-          const good   = item.invertDelta ? isDown : isUp;
-
+        {summaryCards.map((item) => {
+          const CardIcon = item.icon;
           return (
             <Card key={item.label}>
               <CardContent className="p-5">
@@ -163,21 +108,10 @@ export default function ReportPage({ transactions }) {
                     </p>
                   </div>
                   <div className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-xl', item.bg)}>
-                    <Icon size={18} className={item.color} />
+                    <CardIcon size={18} className={item.color} />
                   </div>
                 </div>
-                <div className="flex items-center gap-1 text-xs">
-                  {isUp && <TrendingUp size={12} className={good ? 'text-emerald-500' : 'text-rose-500'} />}
-                  {isDown && <TrendingDown size={12} className={good ? 'text-emerald-500' : 'text-emerald-500'} />}
-                  {!isUp && !isDown && <Minus size={12} className="text-muted-foreground" />}
-                  <span className={cn(
-                    'font-semibold',
-                    !isUp && !isDown ? 'text-muted-foreground' : good ? 'text-emerald-500' : 'text-rose-500'
-                  )}>
-                    {item.delta > 0 ? '+' : ''}{item.delta.toFixed(1)}%
-                  </span>
-                  <span className="text-muted-foreground">vs bulan lalu</span>
-                </div>
+                <ChangeIndicator change={item.change} goodWhenUp={item.goodWhenUp} />
               </CardContent>
             </Card>
           );

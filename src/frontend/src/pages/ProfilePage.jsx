@@ -7,7 +7,7 @@ import { Label } from '../components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '../components/ui/avatar';
 import { Separator } from '../components/ui/separator';
-import { profileImageKey, profileDataKey } from '../utils/storage';
+import { profileImageKey, profileDataKey } from '../lib/storage';
 
 const MAX_IMAGE_SIZE = 1024 * 1024; // 1MB, localStorage browser hanya ~5MB
 

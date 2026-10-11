@@ -5,7 +5,6 @@ import {
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
-import { Badge } from '../components/ui/badge';
 import { Card } from '../components/ui/card';
 import {
   Dialog, DialogContent, DialogHeader,
@@ -16,13 +15,11 @@ import {
   SelectTrigger, SelectValue,
 } from '../components/ui/select';
 import { cn } from '../lib/utils';
-import { parseTxDate, todayLocal } from '../utils/date';
-
-const CATEGORY_ICON = {
-  Makan: '🍔', Transport: '🚗', Belanja: '🛍️',
-  Hiburan: '🎬', Tagihan: '⚡', Kesehatan: '💊',
-  Pendidikan: '📚', Gaji: '💰', Lainnya: '📂',
-};
+import { parseTxDate } from '../lib/date';
+import { formatRupiahAbs } from '../lib/format';
+import { downloadTransactionsCsv } from '../lib/csv';
+import { compareNewest, isIncome, amountOf, TYPE_EXPENSE, TYPE_INCOME } from '../lib/transactions';
+import { categoryIcon } from '../constants/categories';
 
 const PER_PAGE = 15;
 
@@ -31,12 +28,6 @@ function formatDate(t) {
   return d ? d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '-';
 }
 
-// Urutan "terbaru" = tanggal transaksi, lalu urutan input (sama seperti urutan dari App)
-const byNewest = (a, b) => (b.date || '').localeCompare(a.date || '') || b.ID - a.ID;
-
-function formatRp(n) {
-  return 'Rp ' + Math.abs(n).toLocaleString('id-ID');
-}
 
 export default function TransactionList({ transactions, onEdit, onDelete, editId }) {
   const [search,       setSearch]       = useState('');
@@ -68,10 +59,10 @@ export default function TransactionList({ transactions, onEdit, onDelete, editId
     if (filterCat  !== 'all') list = list.filter((t) => t.category === filterCat);
 
     list.sort((a, b) => {
-      if (sortBy === 'newest') return byNewest(a, b);
-      if (sortBy === 'oldest') return byNewest(b, a);
-      if (sortBy === 'highest') return b.amount - a.amount;
-      if (sortBy === 'lowest')  return a.amount - b.amount;
+      if (sortBy === 'newest') return compareNewest(a, b);
+      if (sortBy === 'oldest') return compareNewest(b, a);
+      if (sortBy === 'highest') return amountOf(b) - amountOf(a);
+      if (sortBy === 'lowest')  return amountOf(a) - amountOf(b);
       return 0;
     });
 
@@ -94,23 +85,10 @@ export default function TransactionList({ transactions, onEdit, onDelete, editId
     search || filterType !== 'all' || filterCat !== 'all' || sortBy !== 'newest';
 
   /* ── CSV export ────────────────────────────────── */
+  // Ekspor transaksi yang sedang tampil (sesuai filter)
   const handleExport = () => {
-    if (!transactions.length) return;
-    const headers = 'Tanggal,Keterangan,Kategori,Tipe,Jumlah';
-    const rows = filtered.map((t) => {
-      const date  = formatDate(t);
-      const desc  = `"${(t.description || '').replace(/"/g, '""')}"`;
-      return `${date},${desc},${t.category},${t.type},${t.amount}`;
-    });
-    const blob = new Blob([[headers, ...rows].join('\n')], { type: 'text/csv;charset=utf-8;' });
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement('a');
-    a.href     = url;
-    a.download = `Laporan_Keuangan_${todayLocal()}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    if (!filtered.length) return;
+    downloadTransactionsCsv(filtered, 'Laporan_Keuangan');
   };
 
   /* ── Render ─────────────────────────────────────── */
@@ -165,8 +143,8 @@ export default function TransactionList({ transactions, onEdit, onDelete, editId
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Semua Jenis</SelectItem>
-                <SelectItem value="Pengeluaran">📤 Pengeluaran</SelectItem>
-                <SelectItem value="Pemasukan">📥 Pemasukan</SelectItem>
+                <SelectItem value={TYPE_EXPENSE}>📤 Pengeluaran</SelectItem>
+                <SelectItem value={TYPE_INCOME}>📥 Pemasukan</SelectItem>
               </SelectContent>
             </Select>
 
@@ -178,7 +156,7 @@ export default function TransactionList({ transactions, onEdit, onDelete, editId
                 <SelectItem value="all">Semua Kategori</SelectItem>
                 {categories.map((c) => (
                   <SelectItem key={c} value={c}>
-                    {CATEGORY_ICON[c] || '📂'} {c}
+                    {categoryIcon(c)} {c}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -219,7 +197,7 @@ export default function TransactionList({ transactions, onEdit, onDelete, editId
             <tbody className="divide-y">
               {currentItems.length > 0 ? (
                 currentItems.map((t) => {
-                  const isIncome  = t.type === 'Pemasukan';
+                  const incoming  = isIncome(t);
                   const isEditing = editId === t.ID;
                   return (
                     <tr
@@ -239,12 +217,12 @@ export default function TransactionList({ transactions, onEdit, onDelete, editId
                       </td>
                       <td className="px-4 py-3">
                         <span className="inline-flex items-center gap-1 rounded-full border bg-background px-2 py-0.5 text-xs font-medium">
-                          {CATEGORY_ICON[t.category] || '📂'} {t.category}
+                          {categoryIcon(t.category)} {t.category}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-right font-semibold tabular-nums">
-                        <span className={isIncome ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}>
-                          {isIncome ? '+' : '-'} {formatRp(Number(t.amount || 0))}
+                        <span className={incoming ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}>
+                          {incoming ? '+' : '-'} {formatRupiahAbs(t.amount)}
                         </span>
                       </td>
                       <td className="px-4 py-3">

@@ -23,6 +23,7 @@ COPY --from=builder /app/dist /usr/share/nginx/html
 
 # Copy konfigurasi Nginx custom (Opsional, agar React Router aman saat refresh)
 COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY nginx-security-headers.conf /etc/nginx/snippets/security-headers.conf
 
 EXPOSE 80
 

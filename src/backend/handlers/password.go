@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"os"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -75,7 +74,7 @@ func actionEmailHTML(title, intro, buttonText, link, validity string) string {
 }
 
 func frontendURL(path string) string {
-	return strings.TrimRight(os.Getenv("FRONTEND_URL"), "/") + path
+	return config.App.FrontendURL + path
 }
 
 // SendVerificationEmail membuat token verifikasi baru untuk user dan mengirim link-nya.

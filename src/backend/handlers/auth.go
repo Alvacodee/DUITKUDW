@@ -1,9 +1,8 @@
-package controllers
+package handlers
 
 import (
 	"finance-tracker-backend/auth"
 	"finance-tracker-backend/config"
-	"finance-tracker-backend/handlers"
 	"finance-tracker-backend/middleware"
 	"finance-tracker-backend/models"
 	"net/http"
@@ -64,7 +63,7 @@ func Register(c *gin.Context) {
 	}
 
 	// Kirim email verifikasi. Kegagalan kirim tidak membatalkan registrasi.
-	handlers.SendVerificationEmail(user)
+	SendVerificationEmail(user)
 
 	c.JSON(http.StatusOK, gin.H{"message": "Berhasil registrasi! Cek email untuk verifikasi alamat email."})
 }

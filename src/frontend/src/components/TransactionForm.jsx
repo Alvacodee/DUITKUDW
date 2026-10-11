@@ -10,19 +10,9 @@ import {
   SelectTrigger, SelectValue,
 } from './ui/select';
 import { cn } from '../lib/utils';
-import { todayLocal, parseTxDate, toDateKey } from '../utils/date';
-
-const CATEGORIES = [
-  { value: 'Makan',       label: '🍔 Makan & Minum' },
-  { value: 'Transport',   label: '🚗 Transportasi' },
-  { value: 'Belanja',     label: '🛍️ Belanja' },
-  { value: 'Hiburan',     label: '🎬 Hiburan' },
-  { value: 'Tagihan',     label: '⚡ Tagihan & Utilitas' },
-  { value: 'Kesehatan',   label: '💊 Kesehatan' },
-  { value: 'Pendidikan',  label: '📚 Pendidikan' },
-  { value: 'Gaji',        label: '💰 Gaji / Pendapatan' },
-  { value: 'Lainnya',     label: '📂 Lainnya' },
-];
+import { todayLocal, parseTxDate, toDateKey } from '../lib/date';
+import { CATEGORIES, DEFAULT_CATEGORY } from '../constants/categories';
+import { TYPE_EXPENSE, TYPE_INCOME } from '../lib/transactions';
 
 // Dihitung saat dipakai (bukan saat modul dimuat) dan pakai tanggal lokal, bukan UTC.
 const emptyForm = () => ({
@@ -30,7 +20,7 @@ const emptyForm = () => ({
   description: '',
   amount:      '',
   category:    'Makan',
-  type:        'Pengeluaran',
+  type:        TYPE_EXPENSE,
 });
 
 // Isi form dari transaksi yang sedang diedit.
@@ -41,8 +31,8 @@ const formFromTransaction = (t) => {
     date:        d ? toDateKey(d) : todayLocal(),
     description: t.description || '',
     amount:      t.amount ?? '',
-    category:    t.category || 'Lainnya',
-    type:        t.type || 'Pengeluaran',
+    category:    t.category || DEFAULT_CATEGORY,
+    type:        t.type || TYPE_EXPENSE,
   };
 };
 
@@ -112,12 +102,12 @@ export default function TransactionForm({ onSubmit, initialData, isEditMode, onC
                 Jenis
               </Label>
               <Select value={form.type} onValueChange={(v) => set('type', v)}>
-                <SelectTrigger className={cn(fieldClass, form.type === 'Pemasukan' ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400')}>
+                <SelectTrigger className={cn(fieldClass, form.type === TYPE_INCOME ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400')}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Pengeluaran">📤 Pengeluaran</SelectItem>
-                  <SelectItem value="Pemasukan">📥 Pemasukan</SelectItem>
+                  <SelectItem value={TYPE_EXPENSE}>📤 Pengeluaran</SelectItem>
+                  <SelectItem value={TYPE_INCOME}>📥 Pemasukan</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -167,7 +157,7 @@ export default function TransactionForm({ onSubmit, initialData, isEditMode, onC
                 <SelectContent>
                   {CATEGORIES.map((c) => (
                     <SelectItem key={c.value} value={c.value}>
-                      {c.label}
+                      {c.icon} {c.label}
                     </SelectItem>
                   ))}
                 </SelectContent>

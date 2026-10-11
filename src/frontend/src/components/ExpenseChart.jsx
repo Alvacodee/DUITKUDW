@@ -1,7 +1,8 @@
 import { useMemo } from 'react';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
-import { isThisMonth } from '../utils/date';
+import { formatRupiah } from '../lib/format';
+import { expenseByCategory, transactionsInMonth } from '../lib/transactions';
 
 const COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316', '#6366f1'];
 
@@ -11,7 +12,7 @@ const CustomTooltip = ({ active, payload }) => {
     return (
       <div className="rounded-lg border bg-card px-3 py-2 shadow-md text-xs">
         <p className="font-semibold">{name}</p>
-        <p className="text-muted-foreground">Rp {Number(value).toLocaleString('id-ID')}</p>
+        <p className="text-muted-foreground">{formatRupiah(value)}</p>
       </div>
     );
   }
@@ -32,20 +33,8 @@ const CustomLegend = ({ payload }) => (
 export default function ExpenseChart({ transactions }) {
   const { data, total } = useMemo(() => {
     // Pengeluaran bulan berjalan saja
-    const expenses = transactions.filter((t) => t.type === 'Pengeluaran' && isThisMonth(t));
-    const totalAmt = expenses.reduce((s, t) => s + Number(t.amount || 0), 0);
-
-    const grouped = expenses.reduce((acc, t) => {
-      const cat = t.category || 'Lainnya';
-      acc[cat] = (acc[cat] || 0) + Number(t.amount || 0);
-      return acc;
-    }, {});
-
-    const chartData = Object.entries(grouped)
-      .map(([name, value]) => ({ name, value }))
-      .sort((a, b) => b.value - a.value);
-
-    return { data: chartData, total: totalAmt };
+    const chartData = expenseByCategory(transactionsInMonth(transactions, 0));
+    return { data: chartData, total: chartData.reduce((s, c) => s + c.value, 0) };
   }, [transactions]);
 
   return (

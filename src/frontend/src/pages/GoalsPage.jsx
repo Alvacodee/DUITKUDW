@@ -1,14 +1,14 @@
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import {
   Plus, Pencil, Trash2, X, Save,
-  Trophy, CalendarDays, Coins, Crosshair,
+  CalendarDays, Coins,
   CheckCircle2, Clock, AlertCircle,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
-import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import { Card, CardContent } from '../components/ui/card';
 import { Progress } from '../components/ui/progress';
 import { Badge } from '../components/ui/badge';
 import {
@@ -16,8 +16,10 @@ import {
   DialogTitle, DialogDescription,
 } from '../components/ui/dialog';
 import { cn } from '../lib/utils';
+import { formatRupiahAbs } from '../lib/format';
+import { parseDateKey } from '../lib/date';
+import { goalsKey, LEGACY_GOAL_KEYS, loadUserData, saveUserData } from '../lib/storage';
 
-const STORAGE_KEY = 'duitku_goals';
 const EMOJIS = ['🎯','💻','✈️','🏠','🚗','📱','🎓','💍','🎸','📷','🏋️','🌏','💰','🛋️','📚'];
 
 const EMPTY_FORM = {
@@ -25,22 +27,13 @@ const EMPTY_FORM = {
   deadline: '', notes: '',
 };
 
-function loadGoals() {
-  try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; }
-  catch { return []; }
-}
-function saveGoals(goals) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(goals));
-}
-
-function formatRp(n) {
-  return 'Rp ' + Math.abs(Number(n)).toLocaleString('id-ID');
-}
-
+// Sisa hari menuju deadline (tanggal lokal, dihitung dari awal hari ini)
 function daysLeft(deadline) {
-  if (!deadline) return null;
-  const diff = Math.ceil((new Date(deadline) - new Date()) / (1000 * 60 * 60 * 24));
-  return diff;
+  const target = parseDateKey(deadline);
+  if (!target) return null;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return Math.round((target - today) / (1000 * 60 * 60 * 24));
 }
 
 function GoalStatus({ pct, days }) {
@@ -86,10 +79,10 @@ function GoalCard({ goal, onEdit, onDelete, onAddFund }) {
         <div className="space-y-1.5">
           <div className="flex justify-between text-sm">
             <span className="font-semibold tabular-nums text-primary">
-              {formatRp(goal.currentAmount)}
+              {formatRupiahAbs(goal.currentAmount)}
             </span>
             <span className="text-muted-foreground tabular-nums">
-              {formatRp(goal.targetAmount)}
+              {formatRupiahAbs(goal.targetAmount)}
             </span>
           </div>
           <Progress
@@ -99,7 +92,7 @@ function GoalCard({ goal, onEdit, onDelete, onAddFund }) {
           />
           <div className="flex justify-between text-xs text-muted-foreground">
             <span>{pct.toFixed(1)}% tercapai</span>
-            {remaining > 0 && <span>Kurang {formatRp(remaining)}</span>}
+            {remaining > 0 && <span>Kurang {formatRupiahAbs(remaining)}</span>}
           </div>
         </div>
 
@@ -108,7 +101,7 @@ function GoalCard({ goal, onEdit, onDelete, onAddFund }) {
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <CalendarDays size={12} />
             <span>
-              Target: {new Date(goal.deadline).toLocaleDateString('id-ID', {
+              Target: {parseDateKey(goal.deadline)?.toLocaleDateString('id-ID', {
                 day: 'numeric', month: 'long', year: 'numeric',
               })}
             </span>
@@ -144,8 +137,12 @@ function GoalCard({ goal, onEdit, onDelete, onAddFund }) {
 }
 
 // ── Main page ─────────────────────────────────────────────
-export default function GoalsPage() {
-  const [goals,       setGoals]       = useState(loadGoals);
+export default function GoalsPage({ storageUser }) {
+  const storageKey = goalsKey(storageUser);
+  const [goals,       setGoals]       = useState(() => {
+    const saved = loadUserData(storageKey, LEGACY_GOAL_KEYS, []);
+    return Array.isArray(saved) ? saved : [];
+  });
   const [showForm,    setShowForm]    = useState(false);
   const [editingGoal, setEditingGoal] = useState(null);
   const [fundTarget,  setFundTarget]  = useState(null);
@@ -202,7 +199,7 @@ export default function GoalsPage() {
         ];
 
     setGoals(updated);
-    saveGoals(updated);
+    saveUserData(storageKey, updated);
     setShowForm(false);
     toast.success(editingGoal ? 'Target diperbarui!' : 'Target tabungan ditambahkan! 🎯');
   };
@@ -210,7 +207,7 @@ export default function GoalsPage() {
   const handleDelete = (id) => {
     const updated = goals.filter((g) => g.id !== id);
     setGoals(updated);
-    saveGoals(updated);
+    saveUserData(storageKey, updated);
     setDeleteTarget(null);
     toast.success('Target dihapus.');
   };
@@ -224,11 +221,11 @@ export default function GoalsPage() {
       return { ...g, currentAmount: newAmt };
     });
     setGoals(updated);
-    saveGoals(updated);
+    saveUserData(storageKey, updated);
 
     const goal = updated.find((g) => g.id === fundTarget.id);
     const reached = goal.currentAmount >= goal.targetAmount;
-    toast.success(reached ? `🎉 Target "${goal.name}" tercapai!` : `+${formatRp(amount)} ditambahkan ke "${goal.name}"!`);
+    toast.success(reached ? `🎉 Target "${goal.name}" tercapai!` : `+${formatRupiahAbs(amount)} ditambahkan ke "${goal.name}"!`);
     setFundTarget(null);
     setFundAmount('');
   };
@@ -252,8 +249,8 @@ export default function GoalsPage() {
       {goals.length > 0 && (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           {[
-            { label: 'Total Target', value: formatRp(totalTarget), icon: '🎯', color: 'text-primary' },
-            { label: 'Total Terkumpul', value: formatRp(totalSaved), icon: '💰', color: 'text-emerald-500' },
+            { label: 'Total Target', value: formatRupiahAbs(totalTarget), icon: '🎯', color: 'text-primary' },
+            { label: 'Total Terkumpul', value: formatRupiahAbs(totalSaved), icon: '💰', color: 'text-emerald-500' },
             { label: 'Target Tercapai', value: `${completed} / ${goals.length}`, icon: '🏆', color: 'text-amber-500' },
           ].map((s) => (
             <Card key={s.label}>
@@ -418,7 +415,7 @@ export default function GoalsPage() {
               <div className="rounded-lg bg-muted/50 p-3 space-y-2">
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Terkumpul</span>
-                  <span className="font-semibold">{formatRp(fundTarget.currentAmount)}</span>
+                  <span className="font-semibold">{formatRupiahAbs(fundTarget.currentAmount)}</span>
                 </div>
                 <Progress
                   value={Math.min(100, (fundTarget.currentAmount / fundTarget.targetAmount) * 100)}
@@ -426,7 +423,7 @@ export default function GoalsPage() {
                 />
                 <div className="flex justify-between text-xs text-muted-foreground">
                   <span>{((fundTarget.currentAmount / fundTarget.targetAmount) * 100).toFixed(1)}%</span>
-                  <span>Target: {formatRp(fundTarget.targetAmount)}</span>
+                  <span>Target: {formatRupiahAbs(fundTarget.targetAmount)}</span>
                 </div>
               </div>
 

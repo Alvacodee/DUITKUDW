@@ -2,8 +2,8 @@ package config
 
 import (
 	"finance-tracker-backend/models"
-	"fmt"
 	"log"
+	"net/url"
 	"os"
 
 	"gorm.io/driver/postgres"
@@ -12,58 +12,66 @@ import (
 
 var DB *gorm.DB
 
-func ConnectDatabase() {
-	// 1. Ambil URL dari .env
-	dsn := os.Getenv("DATABASE_URL")
-
-	// 2. Jika tidak ada (untuk Localhost)
-	if dsn == "" {
-		// Default per-field untuk localhost. Password TIDAK di-hardcode, wajib dari env
-		dbHost := getEnv("DB_HOST", "localhost")
-		dbUser := getEnv("DB_USER", "postgres")
-		dbPassword := os.Getenv("DB_PASSWORD")
-		dbName := getEnv("DB_NAME", "finance_tracker")
-		dbPort := getEnv("DB_PORT", "5432")
-
-		dsn = fmt.Sprintf(
-			"host=%s user=%s password=%s dbname=%s port=%s sslmode=disable TimeZone=Asia/Jakarta",
-			dbHost, dbUser, dbPassword, dbName, dbPort,
-		)
+// buildDSN memakai DATABASE_URL bila ada (Supabase / cloud). Selain itu menyusun URL
+// dari DB_* per-field. Format URL dipakai (bukan "key=value") agar password kosong atau
+// berisi spasi/karakter khusus tidak merusak parsing (BUG-21).
+func buildDSN() (dsn string, source string) {
+	if v := os.Getenv("DATABASE_URL"); v != "" {
+		return v, "DATABASE_URL"
 	}
 
-	// 3. KUNCI UTAMA SUPABASE: Matikan Prepared Statements
-	// Ini yang membuat error "Tenant not found" musnah
+	u := url.URL{
+		Scheme: "postgres",
+		Host:   getEnv("DB_HOST", "localhost") + ":" + getEnv("DB_PORT", "5432"),
+		Path:   "/" + getEnv("DB_NAME", "finance_tracker"),
+	}
+	// Password TIDAK di-hardcode, wajib dari env
+	if pw := os.Getenv("DB_PASSWORD"); pw != "" {
+		u.User = url.UserPassword(getEnv("DB_USER", "postgres"), pw)
+	} else {
+		u.User = url.User(getEnv("DB_USER", "postgres"))
+	}
+	// sslmode: container lokal tanpa TLS; gunakan "require" untuk server remote.
+	// TimeZone ditulis apa adanya: driver GORM membaca nilai ini dari DSN mentah (regex),
+	// sehingga versi ter-encode ("Asia%2FJakarta") tidak dikenali.
+	u.RawQuery = "sslmode=" + url.QueryEscape(getEnv("DB_SSLMODE", "disable")) + "&TimeZone=Asia/Jakarta"
+	return u.String(), "DB_HOST " + u.Host
+}
+
+func ConnectDatabase() {
+	dsn, source := buildDSN()
+
+	// PreferSimpleProtocol: matikan prepared statements. Wajib untuk connection pooler
+	// Supabase (PgBouncer mode transaction), kalau tidak muncul error "Tenant not found".
 	database, err := gorm.Open(postgres.New(postgres.Config{
 		DSN:                  dsn,
-		PreferSimpleProtocol: true, // WAJIB TRUE UNTUK SUPABASE
+		PreferSimpleProtocol: true,
 	}), &gorm.Config{})
-
 	if err != nil {
 		log.Fatal("❌ Gagal koneksi ke database: ", err)
 	}
 
-	err = database.AutoMigrate(&models.User{}, &models.Transaction{}, &models.LoginCode{})
-	if err != nil {
+	if err := database.AutoMigrate(&models.User{}, &models.Transaction{}, &models.LoginCode{}); err != nil {
 		log.Fatal("❌ Gagal migrasi database: ", err)
 	}
+	migrateData(database)
 
-	// Akun yang dibuat lewat Google sudah pasti emailnya terverifikasi (idempoten, aman diulang)
-	database.Model(&models.User{}).
+	DB = database
+	log.Println("🚀 Database terhubung via", source)
+}
+
+// migrateData: perbaikan data idempoten (aman dijalankan di setiap startup).
+func migrateData(db *gorm.DB) {
+	// Akun yang dibuat lewat Google sudah pasti emailnya terverifikasi
+	db.Model(&models.User{}).
 		Where("password = ? AND email_verified = ?", models.GoogleOnlyPassword, false).
 		Update("email_verified", true)
 
-	DB = database
-
-	if os.Getenv("DATABASE_URL") != "" {
-		fmt.Println("🚀 Database connected successfully to: Supabase Cloud")
-	} else {
-		fmt.Println("🚀 Database connected successfully to: Local Docker")
-	}
-}
-
-func getEnv(key, fallback string) string {
-	if v := os.Getenv(key); v != "" {
-		return v
-	}
-	return fallback
+	// INC-02: data lama bisa berisi "expense"/"income" (huruf apa pun). Samakan ke nilai baku.
+	db.Model(&models.Transaction{}).
+		Where("LOWER(type) IN ? AND type <> ?", []string{"expense", "pengeluaran"}, models.TypeExpense).
+		Update("type", models.TypeExpense)
+	db.Model(&models.Transaction{}).
+		Where("LOWER(type) IN ? AND type <> ?", []string{"income", "pemasukan"}, models.TypeIncome).
+		Update("type", models.TypeIncome)
 }

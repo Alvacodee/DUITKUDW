@@ -8,6 +8,7 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { API_URL } from '../config';
+import { apiRequest } from '../api/client';
 import { useTheme } from '../theme/useTheme';
 import { PASSWORD_RULES, validatePassword } from '../lib/passwordPolicy';
 
@@ -37,29 +38,19 @@ export default function AuthForm({ onLogin }) {
       if (err) { setError(err); return; }
     }
     setLoading(true);
-    const endpoint = isLogin ? `${API_URL}/login` : `${API_URL}/register`;
-    const payload  = isLogin
+    const payload = isLogin
       ? { username: formData.username.trim(), password: formData.password }
       : { username: formData.username.trim(), email: formData.email.trim(), password: formData.password };
     try {
-      const res  = await fetch(endpoint, {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify(payload),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || 'Terjadi kesalahan');
+      const data = await apiRequest(isLogin ? '/login' : '/register', { method: 'POST', body: payload });
       if (isLogin) {
-        const name = data.username || formData.username.trim();
-        localStorage.setItem('token', data.token);
-        localStorage.setItem('username', name);
-        onLogin(data.token, name);
+        onLogin(data.token, data.username || formData.username.trim());
       } else {
         setSuccess(true);
         setFormData(EMPTY_FORM);
       }
     } catch (err) {
-      setError(err.message === 'Failed to fetch' ? 'Gagal menghubungi server.' : err.message);
+      setError(err.message);
     } finally {
       setLoading(false);
     }

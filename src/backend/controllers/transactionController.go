@@ -45,7 +45,7 @@ func bindTransactionInput(c *gin.Context) (transactionInput, string) {
 	if input.Amount <= 0 {
 		return input, "Nominal harus lebih dari 0"
 	}
-	if input.Type != "Pemasukan" && input.Type != "Pengeluaran" {
+	if input.Type != models.TypeIncome && input.Type != models.TypeExpense {
 		return input, "Jenis transaksi harus Pemasukan atau Pengeluaran"
 	}
 	if input.Category == "" {

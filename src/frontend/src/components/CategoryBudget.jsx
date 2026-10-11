@@ -1,42 +1,28 @@
 import { useState, useMemo } from 'react';
-import { Plus, Trash2, Target } from 'lucide-react';
+import { Trash2, Target } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
-import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
+import { Card, CardContent } from './ui/card';
 import { Progress } from './ui/progress';
 import { cn } from '../lib/utils';
-import { isThisMonth } from '../utils/date';
+import { formatRupiah } from '../lib/format';
+import { transactionsInMonth, expenseByCategory } from '../lib/transactions';
+import { budgetsKey, LEGACY_BUDGET_KEYS, loadUserData, saveUserData } from '../lib/storage';
+import { CATEGORIES } from '../constants/categories';
 
-const CATEGORY_META = {
-  Makan:      { icon: '🍔', color: 'bg-orange-500' },
-  Transport:  { icon: '🚗', color: 'bg-blue-500' },
-  Belanja:    { icon: '🛍️', color: 'bg-purple-500' },
-  Hiburan:    { icon: '🎬', color: 'bg-pink-500' },
-  Tagihan:    { icon: '⚡', color: 'bg-yellow-500' },
-  Kesehatan:  { icon: '💊', color: 'bg-red-500' },
-  Pendidikan: { icon: '📚', color: 'bg-indigo-500' },
-  Gaji:       { icon: '💰', color: 'bg-emerald-500' },
-  Lainnya:    { icon: '📂', color: 'bg-slate-500' },
-};
-
-const STORAGE_KEY = 'duitku_budgets';
-
-function loadBudgets() {
-  try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {};
-  } catch {
-    return {};
-  }
+// Hanya simpan angka positif yang valid (data lama di localStorage bisa berisi apa saja)
+function sanitizeBudgets(raw) {
+  if (!raw || typeof raw !== 'object') return {};
+  return Object.fromEntries(
+    Object.entries(raw)
+      .map(([cat, v]) => [cat, Number(v)])
+      .filter(([, v]) => Number.isFinite(v) && v > 0)
+  );
 }
 
-function saveBudgets(b) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(b));
-}
-
-function formatRp(n) {
-  return 'Rp ' + n.toLocaleString('id-ID');
-}
+// "Gaji" adalah kategori pemasukan, tidak masuk akal diberi batas pengeluaran
+const BUDGET_CATEGORIES = CATEGORIES.filter((c) => c.value !== 'Gaji');
 
 function getStatusColor(pct) {
   if (pct >= 100) return { text: 'text-rose-500', bar: 'bg-rose-500' };
@@ -44,35 +30,37 @@ function getStatusColor(pct) {
   return            { text: 'text-emerald-500', bar: 'bg-emerald-500' };
 }
 
-export default function CategoryBudgets({ transactions }) {
-  const [budgets, setBudgets] = useState(loadBudgets);
+export default function CategoryBudgets({ transactions, storageUser }) {
+  const storageKey = budgetsKey(storageUser);
+  const [budgets, setBudgets] = useState(() => sanitizeBudgets(loadUserData(storageKey, LEGACY_BUDGET_KEYS, {})));
   const [editing, setEditing] = useState({});
 
-  const thisMonthExpenses = useMemo(() => {
-    return transactions
-      .filter((t) => t.type === 'Pengeluaran' && isThisMonth(t))
-      .reduce((acc, t) => {
-        acc[t.category] = (acc[t.category] || 0) + Number(t.amount || 0);
-        return acc;
-      }, {});
-  }, [transactions]);
+  // Pengeluaran per kategori bulan ini (anggaran bersifat bulanan)
+  const thisMonthExpenses = useMemo(
+    () => Object.fromEntries(expenseByCategory(transactionsInMonth(transactions, 0)).map((c) => [c.name, c.value])),
+    [transactions]
+  );
 
-  const allCategories = Object.keys(CATEGORY_META);
+  const persist = (next) => {
+    setBudgets(next);
+    saveUserData(storageKey, next);
+  };
 
   const updateBudget = (cat, value) => {
+    if (value === '') return;
     const num = Number(value);
-    if (isNaN(num) || num < 0) return;
-    const next = { ...budgets, [cat]: num };
-    setBudgets(next);
-    saveBudgets(next);
-    if (num > 0) toast.success(`Anggaran ${cat} disimpan: ${formatRp(num)}`);
+    if (!Number.isFinite(num) || num <= 0) {
+      toast.error('Batas anggaran harus lebih dari 0.');
+      return;
+    }
+    persist({ ...budgets, [cat]: num });
+    toast.success(`Anggaran ${cat} disimpan: ${formatRupiah(num)}`);
   };
 
   const removeBudget = (cat) => {
     const next = { ...budgets };
     delete next[cat];
-    setBudgets(next);
-    saveBudgets(next);
+    persist(next);
     toast.info(`Anggaran ${cat} dihapus`);
   };
 
@@ -90,11 +78,11 @@ export default function CategoryBudgets({ transactions }) {
             <div className="flex items-start justify-between mb-3">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Total Anggaran Bulan Ini</p>
-                <p className="text-2xl font-bold">{formatRp(totalBudget)}</p>
+                <p className="text-2xl font-bold">{formatRupiah(totalBudget)}</p>
               </div>
               <div className="text-right">
                 <p className="text-sm font-medium text-muted-foreground">Terpakai</p>
-                <p className={cn('text-xl font-bold', totalColor.text)}>{formatRp(totalSpent)}</p>
+                <p className={cn('text-xl font-bold', totalColor.text)}>{formatRupiah(totalSpent)}</p>
               </div>
             </div>
             <Progress
@@ -111,8 +99,7 @@ export default function CategoryBudgets({ transactions }) {
 
       {/* Per-category cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {allCategories.map((cat) => {
-          const meta    = CATEGORY_META[cat];
+        {BUDGET_CATEGORIES.map(({ value: cat, icon }) => {
           const budget  = budgets[cat] || 0;
           const spent   = thisMonthExpenses[cat] || 0;
           const pct     = budget > 0 ? Math.min(100, (spent / budget) * 100) : 0;
@@ -125,7 +112,7 @@ export default function CategoryBudgets({ transactions }) {
                 {/* Header */}
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <span className="text-xl">{meta.icon}</span>
+                    <span className="text-xl">{icon}</span>
                     <span className="font-semibold text-sm">{cat}</span>
                   </div>
                   {budget > 0 && (
@@ -141,9 +128,9 @@ export default function CategoryBudgets({ transactions }) {
                 {/* Spent */}
                 <div>
                   <p className="text-xs text-muted-foreground mb-1">
-                    Bulan ini: <span className="font-medium text-foreground">{formatRp(spent)}</span>
+                    Bulan ini: <span className="font-medium text-foreground">{formatRupiah(spent)}</span>
                     {budget > 0 && (
-                      <span> / {formatRp(budget)}</span>
+                      <span> / {formatRupiah(budget)}</span>
                     )}
                   </p>
                   {budget > 0 && (

@@ -76,7 +76,7 @@ type GoogleUser struct {
 // Redirect ke frontend dengan data di fragment URL (#...).
 // Fragment tidak dikirim browser ke server mana pun, jadi tidak tercatat di access log.
 func redirectToFrontend(w http.ResponseWriter, r *http.Request, fragment url.Values) {
-	target := strings.TrimRight(os.Getenv("FRONTEND_URL"), "/") + "/#" + fragment.Encode()
+	target := config.App.FrontendURL + "/#" + fragment.Encode()
 	http.Redirect(w, r, target, http.StatusSeeOther)
 }
 

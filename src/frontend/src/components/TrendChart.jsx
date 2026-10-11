@@ -4,22 +4,21 @@ import {
   CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
-import { parseTxDate, toDateKey } from '../utils/date';
+import { parseTxDate, toDateKey } from '../lib/date';
+import { formatRupiah } from '../lib/format';
+import { isExpense, amountOf } from '../lib/transactions';
 
 function processData(transactions, mode) {
   if (!transactions?.length) return [];
 
-  const expenses = transactions.filter((t) => {
-    const type = t.type?.toLowerCase() || '';
-    return type === 'pengeluaran' || type === 'expense';
-  });
+  const expenses = transactions.filter(isExpense);
 
   // Grouping per hari / per bulan pakai tanggal lokal agar tidak bergeser zona waktu
   const grouped = expenses.reduce((acc, t) => {
     const d = parseTxDate(t);
     if (!d) return acc;
     const key = mode === 'monthly' ? toDateKey(d).slice(0, 7) : toDateKey(d);
-    acc[key] = (acc[key] || 0) + Number(t.amount || 0);
+    acc[key] = (acc[key] || 0) + amountOf(t);
     return acc;
   }, {});
 
@@ -45,7 +44,7 @@ const CustomTooltip = ({ active, payload, label }) => {
       <div className="rounded-lg border bg-card px-3 py-2 shadow-md text-xs">
         <p className="font-semibold text-foreground">{label}</p>
         <p className="text-muted-foreground">
-          Rp {payload[0].value.toLocaleString('id-ID')}
+          {formatRupiah(payload[0].value)}
         </p>
       </div>
     );

@@ -10,7 +10,9 @@ import (
 )
 
 // Integration test: butuh PostgreSQL. Jalankan dengan
-//   TEST_DATABASE_URL=postgres://user@localhost:5432/db?sslmode=disable go test ./handlers/
+//
+//	TEST_DATABASE_URL=postgres://user@localhost:5432/db?sslmode=disable go test ./handlers/
+//
 // Tanpa env tersebut test di-skip.
 func setupDB(t *testing.T) {
 	t.Helper()

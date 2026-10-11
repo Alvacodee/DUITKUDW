@@ -44,9 +44,9 @@ Tabel ini diperbarui setiap kali satu fase selesai. Kolom **Ditutup oleh** meruj
 | SEC-09 | ✅ | Fase 1 | `auth.ValidatePassword` / `ValidateUsername` di server. |
 | SEC-10 | ✅👤 | Fase 1 | `token_version` + claim `ver`; peringatan secret < 32 karakter. **`JWT_SECRET` lokal hanya 14 karakter — ganti.** |
 | SEC-11 | ✅ | Fase 1 | Reset/verify/login token disimpan sebagai SHA-256. |
-| SEC-12 | ⏳ | Fase 2 | |
-| SEC-13 | ⏳ | Fase 3 | |
-| SEC-14 | 🟡 | `0ea6637` + Fase 3 | Profil & foto sudah per-user; anggaran & target tabungan di Fase 3. |
+| SEC-12 | ✅ | Fase 2 | Docker multi-stage non-root, uv di-pin, security header nginx, Postgres hanya localhost, trusted proxies. |
+| SEC-13 | ✅ | Fase 2 | `lib/csv.js` menetralkan formula. |
+| SEC-14 | ✅ | `0ea6637` + Fase 2 | Profil, foto, anggaran, target per user + migrasi data lama. |
 | SEC-15 | ⏳ | Fase 3 | |
 | SEC-16 | ✅ | — | `DUITKUDW.zip` sudah dihapus pemilik repo. |
 
@@ -61,49 +61,50 @@ Tabel ini diperbarui setiap kali satu fase selesai. Kolom **Ditutup oleh** meruj
 | BUG-05 | ✅ | `81c59a5` + merge | Go & frontend memeriksa `status`. |
 | BUG-06 | ✅ | `81c59a5` + Fase 1 | `PredictionCard` memakai `trend` eksplisit. |
 | BUG-07 | ✅ | `66b5ba1`, `81c59a5` | |
-| BUG-08 | 🟡 | Fase 2 | Timeout sudah ada; path script masih bergantung `cwd`. |
-| BUG-09 | ⏳ | Fase 2 | |
+| BUG-08 | ✅ | Fase 2 | Path script/python dari config (cwd → executable → env). |
+| BUG-09 | ✅ | Fase 2 | `FRONTEND_URL` wajib di production. |
 | BUG-10 | ✅ | `66b5ba1` (remote) | |
-| BUG-11 | 🟡 | merge + Fase 2 | `ThemeProvider` terpusat; `SettingsPage` masih punya state tema sendiri. |
+| BUG-11 | ✅ | merge + Fase 2 | Semua halaman memakai `ThemeProvider`. |
 | BUG-12 | ✅ | `0ea6637` + merge | |
 | BUG-13 | ✅ | `0ea6637` + merge | |
-| BUG-14 | ⏳ | Fase 2 | |
+| BUG-14 | ✅ | Fase 2 | Arus kas bulan ini + `ChangeIndicator`. |
 | BUG-15 | ✅ | `66b5ba1`, `81c59a5` | |
 | BUG-16 | ✅ | `0ea6637` + merge | |
-| BUG-17 | 🟡 | `0ea6637` + Fase 3 | `ReportPage`, `GoalsPage`, `SettingsPage` belum memakai `utils/date`. |
+| BUG-17 | ✅ | Fase 2 | Semua parsing tanggal lewat `lib/date.js`. |
 | BUG-18 | ✅ | `0ea6637` + merge | |
-| BUG-19 | ⏳ | Fase 3 | |
+| BUG-19 | ✅ | Fase 2 | Tren `flat`, clip negatif. |
 | BUG-20 *(baru)* | ✅ | Fase 0 | Lookup email Google memakai `LOWER(email)`. |
-| BUG-21 *(baru)* | ⏳ | Fase 2 | DSN key-value rusak bila `DB_PASSWORD` kosong (nama database hilang). Ditemukan saat verifikasi Fase 0. |
+| BUG-21 *(baru)* | ✅ | Fase 2 | DSN berbasis URL + unit test. |
 
 ### Code Smells
 
 | ID | Status | Ditutup oleh | Catatan |
 |---|:-:|---|---|
-| CS-01 | ⏳ | Fase 2 | `utils/date.js` sudah ada sebagai awal. |
-| CS-02 | ⏳ | Fase 2 | |
-| CS-03 | 🟡 | Fase 1 + Fase 2 | Callback Google sudah memakai GORM & `auth.IssueToken`; struktur paket di Fase 2. |
+| CS-01 | ✅ | Fase 2 | Modul `lib/` & `constants/` bersama. |
+| CS-02 | ✅ | Fase 2 | `api/client`, hooks, halaman diekstrak; App ±190 baris. |
+| CS-03 | ✅ | Fase 1 + Fase 2 | Satu gaya akses DB (GORM); auth di `handlers/`. |
 | CS-04 | ✅ | `81c59a5` (remote) | Helper `currentUser`. |
-| CS-05 | ⏳ | Fase 2 | |
-| CS-06 | ⏳ | Fase 2 | |
-| CS-07 | 🟡 | Fase 2 | Remote sudah bersih; 6 error tersisa dari file redesign. |
-| CS-08 | 🟡 | Fase 1 + Fase 2 | Unit test `auth`, `middleware`; integration test `handlers`. CI di Fase 2. |
+| CS-05 | ✅ | Fase 2 | `config.App`. |
+| CS-06 | ✅ | Fase 2 | `predict.py` modular + unit test. |
+| CS-07 | ✅ | Fase 2 | ESLint 0 error tanpa pengecualian huruf kapital. |
+| CS-08 | ✅ | Fase 1 + Fase 2 | Test Go/Python/JS + GitHub Actions CI. |
 | CS-09 | ⏳ | Fase 3 | |
-| CS-10 | 🟡 | `66b5ba1` + Fase 3 | `jwt/v4` sudah dihapus; dependensi npm tak terpakai masih ada. |
+| CS-10 | ✅ | `66b5ba1` + Fase 2 | Dependensi npm tak terpakai dihapus; `npm audit` 0. |
 | CS-11 | ⏳ | Fase 3 | |
-| CS-12 | 🟡 | `81c59a5` + Fase 3 | Validasi input sudah ada; index & paginasi di Fase 3. |
+| CS-12 | 🟡 | `81c59a5` + Fase 2 + Fase 3 | Validasi & index `(user_id, date)` selesai; paginasi opsional di Fase 3. |
 
 ### Inkonsistensi
 
 | ID | Status | Ditutup oleh | Catatan |
 |---|:-:|---|---|
 | INC-01 | ✅ | Fase 1 | Satu penerbit token `auth.IssueToken`. |
-| INC-02 | 🟡 | `81c59a5` + Fase 2 | Server menolak tipe selain `Pemasukan`/`Pengeluaran`; normalisasi data lama di Fase 2. |
+| INC-02 | ✅ | Fase 2 | Konstanta tipe + normalisasi data lama saat startup. |
 | INC-03 | ✅ | Fase 1 | Aturan password identik di frontend & backend. |
-| INC-04 | 🟡 | merge + Fase 2 | |
-| INC-05 | ⏳ | Fase 2 | |
+| INC-04 | ✅ | Fase 2 | Semua halaman memakai design token. |
+| INC-05 | ✅ | Fase 2 | `ALLOW_ORIGIN` dihapus, `.env.example` lengkap. |
 | INC-06 | 🟡 | `d904325` + Fase 3 | |
-| INC-07 – INC-13 | ⏳ | Fase 3 | |
+| INC-07, INC-08, INC-12, INC-13 | ⏳ | Fase 3 | |
+| INC-09, INC-10, INC-11 | ✅ | Fase 2 | Mata uang palsu dihapus & versi dari package.json; privasi diperbarui; `pctChange` tunggal. |
 
 ---
 

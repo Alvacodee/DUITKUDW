@@ -1,32 +1,12 @@
 import { useMemo } from 'react';
-import { TrendingUp, TrendingDown, Minus, Wallet, ArrowDownLeft, ArrowUpRight } from 'lucide-react';
+import { Wallet, ArrowDownLeft, ArrowUpRight } from 'lucide-react';
 import { Card, CardContent } from '../components/ui/card';
+import ChangeIndicator from '../components/ChangeIndicator';
 import { cn } from '../lib/utils';
-import { parseTxDate } from '../utils/date';
-import { formatRupiah } from '../lib/format';
+import { formatRupiah, formatRupiahSigned } from '../lib/format';
+import { summarize, transactionsInMonth, pctChange } from '../lib/transactions';
 
-function getMonthTransactions(transactions, offset = 0) {
-  const now   = new Date();
-  const year  = now.getMonth() + 1 + offset <= 0
-    ? now.getFullYear() - 1
-    : now.getFullYear();
-  const month = ((now.getMonth() + offset) % 12 + 12) % 12;
-
-  return transactions.filter((t) => {
-    const d = parseTxDate(t);
-    return !!d && d.getFullYear() === year && d.getMonth() === month;
-  });
-}
-
-function pctChange(curr, prev) {
-  if (prev === 0) return curr > 0 ? 100 : 0;
-  return ((curr - prev) / prev) * 100;
-}
-
-function StatCard({ label, value, icon: Icon, iconBg, change, changeLabel, positive }) {
-  const trend =
-    change > 1 ? 'up' : change < -1 ? 'down' : 'flat';
-
+function StatCard({ label, value, icon: CardIcon, iconBg, footer }) {
   return (
     <Card className="overflow-hidden">
       <CardContent className="p-0">
@@ -38,97 +18,57 @@ function StatCard({ label, value, icon: Icon, iconBg, change, changeLabel, posit
             <p className="text-2xl font-bold tracking-tight">{value}</p>
           </div>
           <div className={cn('flex h-10 w-10 shrink-0 items-center justify-center rounded-xl', iconBg)}>
-            <Icon size={20} />
+            <CardIcon size={20} />
           </div>
         </div>
-
-        {/* Trend bar */}
-        <div className="border-t px-5 py-3 flex items-center gap-1.5">
-          {trend === 'up' && (
-            <TrendingUp
-              size={14}
-              className={cn(positive ? 'text-emerald-500' : 'text-rose-500')}
-            />
-          )}
-          {trend === 'down' && (
-            <TrendingDown
-              size={14}
-              className={cn(positive ? 'text-emerald-500' : 'text-emerald-500')}
-            />
-          )}
-          {trend === 'flat' && <Minus size={14} className="text-muted-foreground" />}
-
-          <span
-            className={cn(
-              'text-xs font-semibold',
-              trend === 'flat' && 'text-muted-foreground',
-              trend === 'up' && (positive ? 'text-emerald-500' : 'text-rose-500'),
-              trend === 'down' && 'text-emerald-500'
-            )}
-          >
-            {trend !== 'flat' && (change > 0 ? '+' : '')}
-            {change.toFixed(1)}%
-          </span>
-          <span className="text-xs text-muted-foreground">{changeLabel}</span>
-        </div>
+        <div className="border-t px-5 py-3 flex items-center gap-1.5">{footer}</div>
       </CardContent>
     </Card>
   );
 }
 
 export default function DashboardStats({ transactions }) {
-
-  const { totalIncome, totalExpense, balance, incomeChange, expenseChange } = useMemo(() => {
-    const allIncome  = transactions.filter((t) => t.type === 'Pemasukan').reduce((s, t) => s + Number(t.amount || 0), 0);
-    const allExpense = transactions.filter((t) => t.type === 'Pengeluaran').reduce((s, t) => s + Number(t.amount || 0), 0);
-
-    const thisMonth = getMonthTransactions(transactions, 0);
-    const lastMonth = getMonthTransactions(transactions, -1);
-
-    const thisIncome  = thisMonth.filter((t) => t.type === 'Pemasukan').reduce((s, t) => s + Number(t.amount || 0), 0);
-    const thisExpense = thisMonth.filter((t) => t.type === 'Pengeluaran').reduce((s, t) => s + Number(t.amount || 0), 0);
-    const prevIncome  = lastMonth.filter((t) => t.type === 'Pemasukan').reduce((s, t) => s + Number(t.amount || 0), 0);
-    const prevExpense = lastMonth.filter((t) => t.type === 'Pengeluaran').reduce((s, t) => s + Number(t.amount || 0), 0);
-
+  const stats = useMemo(() => {
+    const all       = summarize(transactions);
+    const thisMonth = summarize(transactionsInMonth(transactions, 0));
+    const lastMonth = summarize(transactionsInMonth(transactions, -1));
     return {
-      totalIncome:   allIncome,
-      totalExpense:  allExpense,
-      balance:       allIncome - allExpense,
-      incomeChange:  pctChange(thisIncome, prevIncome),
-      expenseChange: pctChange(thisExpense, prevExpense),
+      all,
+      thisNet:       thisMonth.net,
+      incomeChange:  pctChange(thisMonth.income, lastMonth.income),
+      expenseChange: pctChange(thisMonth.expense, lastMonth.expense),
     };
   }, [transactions]);
-
-  const balanceChange = pctChange(totalIncome - totalExpense, totalIncome);
 
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
       <StatCard
         label="Saldo Total"
-        value={formatRupiah(balance)}
+        value={formatRupiah(stats.all.net)}
         icon={Wallet}
-        iconBg="bg-primary/10 text-primary"
-        change={balanceChange}
-        changeLabel="dari pemasukan"
-        positive
+        iconBg={stats.all.net < 0 ? 'bg-rose-100 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400' : 'bg-primary/10 text-primary'}
+        footer={
+          <>
+            <span className="text-xs text-muted-foreground">Arus kas bulan ini:</span>
+            <span className={cn('text-xs font-semibold', stats.thisNet < 0 ? 'text-rose-500' : 'text-emerald-500')}>
+              {formatRupiahSigned(stats.thisNet)}
+            </span>
+          </>
+        }
       />
       <StatCard
         label="Total Pemasukan"
-        value={formatRupiah(totalIncome)}
+        value={formatRupiah(stats.all.income)}
         icon={ArrowDownLeft}
         iconBg="bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400"
-        change={incomeChange}
-        changeLabel="vs bulan lalu"
-        positive
+        footer={<ChangeIndicator change={stats.incomeChange} goodWhenUp label="bulan ini vs bulan lalu" />}
       />
       <StatCard
         label="Total Pengeluaran"
-        value={formatRupiah(totalExpense)}
+        value={formatRupiah(stats.all.expense)}
         icon={ArrowUpRight}
         iconBg="bg-rose-100 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400"
-        change={expenseChange}
-        changeLabel="vs bulan lalu"
-        positive={false}
+        footer={<ChangeIndicator change={stats.expenseChange} goodWhenUp={false} label="bulan ini vs bulan lalu" />}
       />
     </div>
   );

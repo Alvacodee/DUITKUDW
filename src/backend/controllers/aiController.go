@@ -6,14 +6,10 @@ import (
 	"encoding/json"
 	"finance-tracker-backend/config"
 	"finance-tracker-backend/models"
-	"fmt"
+	"log"
 	"net/http"
-	"os"
 	"os/exec"
-	"path/filepath"
-	"runtime"
-	"strconv"
-	"time"
+	"sync"
 
 	"github.com/gin-gonic/gin"
 )
@@ -27,39 +23,39 @@ type PythonResponse struct {
 	ModelUsed  string  `json:"model_used"`
 }
 
-// Batas proses Python yang boleh berjalan bersamaan (tiap proses memuat pandas/statsmodels).
-var predictSlots = make(chan struct{}, predictConcurrency())
+// Minimal jumlah transaksi pengeluaran agar prediksi bermakna
+const minPredictTransactions = 2
 
-func predictConcurrency() int {
-	if n, err := strconv.Atoi(os.Getenv("PREDICT_MAX_CONCURRENCY")); err == nil && n > 0 {
-		return n
-	}
-	return 2
+// Batas proses Python yang boleh berjalan bersamaan (tiap proses memuat pandas/statsmodels).
+// Dibuat saat request pertama karena ukurannya dari config yang dibaca di main().
+var (
+	predictSlots     chan struct{}
+	predictSlotsOnce sync.Once
+)
+
+func slots() chan struct{} {
+	predictSlotsOnce.Do(func() {
+		predictSlots = make(chan struct{}, config.App.PredictMaxConcurrency)
+	})
+	return predictSlots
 }
 
 func PredictSpending(c *gin.Context) {
-	// AMBIL USER DARI CONTEXT (Sesuai Middleware)
 	loggedInUser, ok := currentUser(c)
 	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized: User data not found"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 		return
 	}
 
-	userID := loggedInUser.ID // Ambil ID dari struct User
-
-	// AMBIL DATA TRANSAKSI (Filter by UserID)
+	// Data lama "expense" sudah dinormalisasi saat startup (config.migrateData)
 	var transactions []models.Transaction
-
-	// Query: Ambil milik user tersebut DAN (tipe Pengeluaran ATAU expense)
-	err := config.DB.Where("user_id = ? AND (type = ? OR type = ?)", userID, "Pengeluaran", "expense").Find(&transactions).Error
-
+	err := config.DB.Where("user_id = ? AND type = ?", loggedInUser.ID, models.TypeExpense).Find(&transactions).Error
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal mengambil data transaksi"})
 		return
 	}
 
-	// Validasi jumlah data
-	if len(transactions) < 2 {
+	if len(transactions) < minPredictTransactions {
 		c.JSON(http.StatusOK, gin.H{
 			"prediction": 0,
 			"trend":      "flat",
@@ -69,7 +65,6 @@ func PredictSpending(c *gin.Context) {
 		return
 	}
 
-	// Marshal data ke JSON
 	jsonData, err := json.Marshal(transactions)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal memproses data JSON"})
@@ -78,67 +73,41 @@ func PredictSpending(c *gin.Context) {
 
 	// Ambil slot eksekusi; tolak bila semua slot sedang dipakai agar server tidak kehabisan CPU/RAM
 	select {
-	case predictSlots <- struct{}{}:
-		defer func() { <-predictSlots }()
+	case slots() <- struct{}{}:
+		defer func() { <-slots() }()
 	default:
 		c.Header("Retry-After", "10")
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "AI sedang sibuk, coba lagi sebentar lagi"})
 		return
 	}
 
-	// DETEKSI & JALANKAN PYTHON
-	cwd, _ := os.Getwd()
-	var pythonPath string
-
-	// Cek path VENV
-	if runtime.GOOS == "windows" {
-		pythonPath = filepath.Join(cwd, ".venv", "Scripts", "python.exe")
-	} else {
-		pythonPath = filepath.Join(cwd, ".venv", "bin", "python")
-	}
-
-	// Fallback ke system python jika venv tidak ada
-	if _, err := os.Stat(pythonPath); os.IsNotExist(err) {
-		if runtime.GOOS == "windows" {
-			pythonPath = "python"
-		} else {
-			pythonPath = "python3"
-		}
-	}
-
-	scriptPath := filepath.Join(cwd, "ml", "predict.py")
-
 	// Batasi waktu eksekusi agar request tidak menggantung jika Python macet
-	ctx, cancel := context.WithTimeout(c.Request.Context(), 60*time.Second)
+	ctx, cancel := context.WithTimeout(c.Request.Context(), config.App.PredictTimeout)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, pythonPath, scriptPath)
+	cmd := exec.CommandContext(ctx, config.App.PythonBin, config.App.PredictScript)
 	cmd.Stdin = bytes.NewReader(jsonData)
-
-	var out bytes.Buffer
-	var stderr bytes.Buffer
+	var out, stderr bytes.Buffer
 	cmd.Stdout = &out
 	cmd.Stderr = &stderr
 
-	err = cmd.Run()
-	if err != nil {
-		// Print error detail ke terminal backend untuk debugging
-		fmt.Println("❌ Error Python:", stderr.String())
+	if err := cmd.Run(); err != nil {
+		// Detail hanya ke log server, bukan ke klien
+		log.Printf("❌ Error Python (%s %s): %v\n%s", config.App.PythonBin, config.App.PredictScript, err, stderr.String())
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menjalankan AI"})
 		return
 	}
 
-	// PARSING OUTPUT
 	var result PythonResponse
 	if err := json.Unmarshal(out.Bytes(), &result); err != nil {
-		fmt.Println("❌ Error Parsing JSON:", err)
+		log.Println("❌ Output AI bukan JSON valid:", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Format output AI tidak valid"})
 		return
 	}
 
-	// Python menulis {"status":"error"} (exit code 0) jika gagal di dalam script
+	// predict.py keluar dengan exit code 1 bila gagal, tetapi status tetap dicek untuk berjaga-jaga
 	if result.Status == "error" {
-		fmt.Println("❌ Error dari AI:", result.Message, stderr.String())
+		log.Println("❌ Error dari AI:", result.Message, stderr.String())
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "AI gagal memproses data"})
 		return
 	}
