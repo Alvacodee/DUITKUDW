@@ -1,5 +1,165 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&display=swap');
 @import "tailwindcss";
 
-/* Tailwind v4 default-nya dark mode ikut setting OS (media query).
-   Aplikasi ini memakai toggle manual dengan class "dark" di <html>, jadi variant-nya di-override. */
+/* Dark mode via .dark class on <html> */
 @custom-variant dark (&:where(.dark, .dark *));
+
+@theme inline {
+  --font-sans: 'Plus Jakarta Sans', sans-serif;
+
+  --color-background:         var(--background);
+  --color-foreground:         var(--foreground);
+  --color-card:               var(--card);
+  --color-card-foreground:    var(--card-foreground);
+  --color-popover:            var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary:            var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary:          var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted:              var(--muted);
+  --color-muted-foreground:   var(--muted-foreground);
+  --color-accent:             var(--accent);
+  --color-accent-foreground:  var(--accent-foreground);
+  --color-destructive:        var(--destructive);
+  --color-border:             var(--border);
+  --color-input:              var(--input);
+  --color-ring:               var(--ring);
+  --color-sidebar:            var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+/* ── Light theme ─────────────────────────────────────── */
+:root {
+  --radius: 0.6rem;
+
+  --background:          oklch(0.97 0 0);
+  --foreground:          oklch(0.14 0 0);
+  --card:                oklch(1 0 0);
+  --card-foreground:     oklch(0.14 0 0);
+  --popover:             oklch(1 0 0);
+  --popover-foreground:  oklch(0.14 0 0);
+
+  --primary:             oklch(0.627 0.165 162.48);
+  --primary-foreground:  oklch(1 0 0);
+
+  --secondary:           oklch(0.94 0 0);
+  --secondary-foreground: oklch(0.14 0 0);
+
+  --muted:               oklch(0.94 0 0);
+  --muted-foreground:    oklch(0.50 0 0);
+
+  --accent:              oklch(0.92 0.04 160);
+  --accent-foreground:   oklch(0.27 0.1 162);
+
+  --destructive:         oklch(0.577 0.245 27.325);
+  --border:              oklch(0.89 0 0);
+  --input:               oklch(0.89 0 0);
+  --ring:                oklch(0.627 0.165 162.48);
+
+  /* Light mode sidebar: deep blue-slate (not pure black) */
+  --sidebar:             oklch(0.23 0.02 255);
+  --sidebar-foreground:  oklch(0.97 0 0);
+}
+
+/* ── Dark theme ──────────────────────────────────────── */
+.dark {
+  --background:          oklch(0.13 0 0);
+  --foreground:          oklch(0.96 0 0);
+  --card:                oklch(0.17 0 0);
+  --card-foreground:     oklch(0.96 0 0);
+  --popover:             oklch(0.17 0 0);
+  --popover-foreground:  oklch(0.96 0 0);
+
+  --primary:             oklch(0.765 0.145 162.48);
+  --primary-foreground:  oklch(0.13 0 0);
+
+  --secondary:           oklch(0.24 0 0);
+  --secondary-foreground: oklch(0.96 0 0);
+
+  --muted:               oklch(0.23 0 0);
+  --muted-foreground:    oklch(0.62 0 0);
+
+  --accent:              oklch(0.22 0.04 160);
+  --accent-foreground:   oklch(0.80 0.10 162);
+
+  --destructive:         oklch(0.65 0.22 22.216);
+  --border:              oklch(0.27 0 0);
+  --input:               oklch(0.24 0 0);
+  --ring:                oklch(0.627 0.165 162.48);
+
+  --sidebar:             oklch(0.10 0 0);
+  --sidebar-foreground:  oklch(0.96 0 0);
+}
+
+/* ── Base resets ─────────────────────────────────────── */
+*,
+*::before,
+*::after {
+  border-color: var(--border);
+  box-sizing: border-box;
+}
+
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: var(--font-sans);
+  background-color: var(--background);
+  color: var(--foreground);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── Autofill — prevents browser white-background override ── */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active {
+  /* Delay the bg-color transition so it never visibly changes */
+  transition: background-color 99999s ease-in-out 0s,
+              color 99999s ease-in-out 0s !important;
+  -webkit-text-fill-color: var(--foreground) !important;
+  caret-color: var(--foreground) !important;
+  /* Override the autofill box-shadow with our own bg color */
+  -webkit-box-shadow: 0 0 0 1000px var(--card) inset !important;
+  box-shadow: 0 0 0 1000px var(--card) inset !important;
+}
+
+/* ── Animations ──────────────────────────────────────── */
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-in { animation: fade-in 0.25s ease-out both; }
+
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-in-up { animation: fade-in-up 0.4s ease-out both; }
+
+@keyframes slide-in {
+  from { opacity: 0; transform: translateX(-10px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+.animate-slide-in { animation: slide-in 0.25s ease-out both; }
+
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.95); }
+  to   { opacity: 1; transform: scale(1); }
+}
+.animate-scale-in { animation: scale-in 0.2s ease-out both; }
+
+/* ── Scrollbar ───────────────────────────────────────── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: oklch(0.75 0 0);
+  border-radius: 99px;
+}
+.dark ::-webkit-scrollbar-thumb { background: oklch(0.32 0 0); }

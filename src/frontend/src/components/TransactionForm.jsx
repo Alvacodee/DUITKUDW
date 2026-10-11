@@ -1,167 +1,198 @@
 import { useState } from 'react';
+import { Plus, Save, X, CalendarDays, Tag, Banknote, AlignLeft, Layers } from 'lucide-react';
+import { toast } from 'sonner';
+import { Button } from './ui/button';
+import { Input } from './ui/input';
+import { Label } from './ui/label';
+import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
+import {
+  Select, SelectContent, SelectItem,
+  SelectTrigger, SelectValue,
+} from './ui/select';
+import { cn } from '../lib/utils';
 import { todayLocal, parseTxDate, toDateKey } from '../utils/date';
 
+const CATEGORIES = [
+  { value: 'Makan',       label: '🍔 Makan & Minum' },
+  { value: 'Transport',   label: '🚗 Transportasi' },
+  { value: 'Belanja',     label: '🛍️ Belanja' },
+  { value: 'Hiburan',     label: '🎬 Hiburan' },
+  { value: 'Tagihan',     label: '⚡ Tagihan & Utilitas' },
+  { value: 'Kesehatan',   label: '💊 Kesehatan' },
+  { value: 'Pendidikan',  label: '📚 Pendidikan' },
+  { value: 'Gaji',        label: '💰 Gaji / Pendapatan' },
+  { value: 'Lainnya',     label: '📂 Lainnya' },
+];
+
+// Dihitung saat dipakai (bukan saat modul dimuat) dan pakai tanggal lokal, bukan UTC.
 const emptyForm = () => ({
-  date: todayLocal(), // Default hari ini (YYYY-MM-DD, zona waktu lokal)
+  date:        todayLocal(),
   description: '',
-  amount: '',
-  category: 'Makan',
-  type: 'Pengeluaran'
+  amount:      '',
+  category:    'Makan',
+  type:        'Pengeluaran',
 });
 
-// Isi form dari data transaksi yang sedang diedit.
-// Komponen ini di-remount (prop key di App) setiap item edit berganti, jadi cukup dihitung di initial state.
+// Isi form dari transaksi yang sedang diedit.
+// Komponen di-remount (prop key di App) setiap item edit berganti, jadi cukup dihitung di initial state.
 const formFromTransaction = (t) => {
   const d = parseTxDate(t);
   return {
-    date: d ? toDateKey(d) : todayLocal(),
+    date:        d ? toDateKey(d) : todayLocal(),
     description: t.description || '',
-    amount: t.amount ?? '',
-    category: t.category || 'Lainnya',
-    type: t.type || 'Pengeluaran'
+    amount:      t.amount ?? '',
+    category:    t.category || 'Lainnya',
+    type:        t.type || 'Pengeluaran',
   };
 };
 
-export default function TransactionForm({ onSubmit, initialData, isEditMode, onCancel, darkMode }) {
-  const [formData, setFormData] = useState(() => initialData ? formFromTransaction(initialData) : emptyForm());
+export default function TransactionForm({ onSubmit, initialData, isEditMode, onCancel }) {
+  const [form, setForm] = useState(() => (initialData ? formFromTransaction(initialData) : emptyForm()));
   const [submitting, setSubmitting] = useState(false);
 
-  // HANDLER SUBMIT
+  const set = (key, val) => setForm((p) => ({ ...p, [key]: val }));
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    // Validasi sederhana
-    if (!formData.description.trim() || !formData.amount || Number(formData.amount) <= 0) {
-        return alert("Harap isi keterangan dan jumlah uang (lebih dari 0)!");
+    if (!form.description.trim()) {
+      toast.error('Keterangan tidak boleh kosong.');
+      return;
     }
-    
+    if (!form.amount || Number(form.amount) <= 0) {
+      toast.error('Nominal harus lebih dari 0.');
+      return;
+    }
     setSubmitting(true);
-    const ok = await onSubmit(formData);
+    const ok = await onSubmit(form);
     setSubmitting(false);
-    
-    // Reset form hanya jika berhasil disimpan & mode tambah (bukan edit)
-    if (ok && !isEditMode) {
-      setFormData(emptyForm()); 
-    }
+    // Reset hanya jika berhasil disimpan & mode tambah (input tidak hilang saat gagal)
+    if (ok && !isEditMode) setForm(emptyForm());
   };
 
-  // Class CSS reusable untuk Input & Label
-  const inputClass = `w-full p-3 rounded-xl border outline-none transition focus:ring-2 focus:ring-blue-500 ${
-    darkMode 
-      ? 'bg-slate-700 border-slate-600 text-white placeholder-slate-400' 
-      : 'bg-slate-50 border-slate-200 text-slate-800 placeholder-slate-400'
-  }`;
-  
-  const labelClass = `block text-sm font-semibold mb-2 flex items-center gap-2 ${
-    darkMode ? 'text-slate-300' : 'text-slate-700'
-  }`;
+  const fieldClass = 'h-9';
 
   return (
-    <div className={`p-6 rounded-2xl shadow-lg border h-full ${darkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'}`}>
-      
-      {/* HEADER FORM */}
-      <h3 className={`font-bold text-lg mb-6 flex items-center gap-2 ${darkMode ? 'text-slate-100' : 'text-slate-800'}`}> 
-        {isEditMode ? 'Edit Transaksi' : 'Tambah Transaksi'}
-      </h3>
-
-      <form onSubmit={handleSubmit} className="space-y-5">
-        
-        {/* BARIS 1: TANGGAL & TIPE */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            {/* Tanggal */}
-            <div>
-                <label className={labelClass}> Tanggal</label>
-                <input 
-                    type="date" 
-                    value={formData.date}
-                    onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                    className={inputClass}
-                />
-            </div>
-
-            {/* Tipe (Pemasukan/Pengeluaran) */}
-            <div>
-                <label className={labelClass}> Jenis</label>
-                <select 
-                    value={formData.type}
-                    onChange={(e) => setFormData({ ...formData, type: e.target.value })}
-                    className={inputClass}
-                >
-                    <option value="Pengeluaran"> Pengeluaran</option>
-                    <option value="Pemasukan"> Pemasukan</option>
-                </select>
-            </div>
-        </div>
-
-        {/* BARIS 2: KETERANGAN */}
-        <div>
-          <label className={labelClass}> Keterangan</label>
-          <input 
-            type="text" 
-            placeholder="Contoh: Nasi Padang, Bensin, Gaji..."
-            value={formData.description}
-            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-            className={inputClass}
-          />
-        </div>
-
-        {/* BARIS 3: NOMINAL & KATEGORI */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            {/* Jumlah Uang */}
-            <div>
-                <label className={labelClass}> Nominal (Rp)</label>
-                <input 
-                    type="number" 
-                    placeholder="0"
-                    value={formData.amount}
-                    onChange={(e) => setFormData({ ...formData, amount: e.target.value === '' ? '' : Number(e.target.value) })}
-                    className={inputClass}
-                    min="0"
-                />
-            </div>
-
-            {/* Kategori */}
-            <div>
-                <label className={labelClass}> Kategori</label>
-                <select 
-                    value={formData.category}
-                    onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                    className={inputClass}
-                >
-                    <option value="Makan">🍔 Makan & Minum</option>
-                    <option value="Transport">🚗 Transportasi</option>
-                    <option value="Belanja">🛍️ Belanja</option>
-                    <option value="Hiburan">🎬 Hiburan</option>
-                    <option value="Tagihan">⚡ Tagihan & Utilitas</option>
-                    <option value="Kesehatan">💊 Kesehatan</option>
-                    <option value="Pendidikan">📚 Pendidikan</option>
-                    <option value="Gaji">💰 Gaji / Pendapatan</option>
-                    <option value="Lainnya">📂 Lainnya</option>
-                </select>
-            </div>
-        </div>
-
-        {/* TOMBOL AKSI */}
-        <div className="flex gap-3 pt-4">
-          <button 
-            type="submit" 
-            disabled={submitting}
-            className="flex-1 disabled:opacity-60 disabled:cursor-not-allowed bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-xl font-bold transition shadow-md active:scale-95 flex justify-center items-center gap-2"
-          >
-            {submitting ? 'Menyimpan...' : (isEditMode ? '💾 Simpan Perubahan' : '➕ Simpan')}
-          </button>
-          
-          {isEditMode && (
-            <button 
-              type="button" 
-              onClick={onCancel}
-              className={`px-5 rounded-xl font-medium transition ${darkMode ? 'bg-slate-700 hover:bg-slate-600 text-slate-200' : 'bg-slate-100 hover:bg-slate-200 text-slate-600'}`}
-            >
-              Batal
-            </button>
+    <Card>
+      <CardHeader className="pb-4">
+        <CardTitle className="flex items-center gap-2 text-base">
+          {isEditMode ? (
+            <>
+              <Save size={16} className="text-primary" />
+              Edit Transaksi
+            </>
+          ) : (
+            <>
+              <Plus size={16} className="text-primary" />
+              Tambah Transaksi
+            </>
           )}
-        </div>
+        </CardTitle>
+      </CardHeader>
 
-      </form>
-    </div>
+      <CardContent>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Row 1: Tanggal + Jenis */}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label className="flex items-center gap-1.5">
+                <CalendarDays size={13} className="text-muted-foreground" />
+                Tanggal
+              </Label>
+              <Input
+                type="date"
+                value={form.date}
+                onChange={(e) => set('date', e.target.value)}
+                className={fieldClass}
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="flex items-center gap-1.5">
+                <Layers size={13} className="text-muted-foreground" />
+                Jenis
+              </Label>
+              <Select value={form.type} onValueChange={(v) => set('type', v)}>
+                <SelectTrigger className={cn(fieldClass, form.type === 'Pemasukan' ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400')}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Pengeluaran">📤 Pengeluaran</SelectItem>
+                  <SelectItem value="Pemasukan">📥 Pemasukan</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {/* Row 2: Keterangan */}
+          <div className="space-y-1.5">
+            <Label className="flex items-center gap-1.5">
+              <AlignLeft size={13} className="text-muted-foreground" />
+              Keterangan
+            </Label>
+            <Input
+              type="text"
+              placeholder="Contoh: Nasi Padang, Bensin, Gaji..."
+              value={form.description}
+              onChange={(e) => set('description', e.target.value)}
+              className={fieldClass}
+            />
+          </div>
+
+          {/* Row 3: Nominal + Kategori */}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label className="flex items-center gap-1.5">
+                <Banknote size={13} className="text-muted-foreground" />
+                Nominal (Rp)
+              </Label>
+              <Input
+                type="number"
+                placeholder="0"
+                min="0"
+                value={form.amount}
+                onChange={(e) => set('amount', e.target.value === '' ? '' : Number(e.target.value))}
+                className={fieldClass}
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="flex items-center gap-1.5">
+                <Tag size={13} className="text-muted-foreground" />
+                Kategori
+              </Label>
+              <Select value={form.category} onValueChange={(v) => set('category', v)}>
+                <SelectTrigger className={fieldClass}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {CATEGORIES.map((c) => (
+                    <SelectItem key={c.value} value={c.value}>
+                      {c.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {/* Actions */}
+          <div className="flex gap-2 pt-1">
+            <Button type="submit" className="flex-1" disabled={submitting}>
+              {submitting ? 'Menyimpan...' : isEditMode ? (
+                <><Save size={15} /> Simpan Perubahan</>
+              ) : (
+                <><Plus size={15} /> Tambah</>
+              )}
+            </Button>
+            {isEditMode && (
+              <Button type="button" variant="outline" onClick={onCancel}>
+                <X size={15} />
+                Batal
+              </Button>
+            )}
+          </div>
+        </form>
+      </CardContent>
+    </Card>
   );
 }

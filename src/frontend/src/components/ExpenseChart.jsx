@@ -1,79 +1,97 @@
-import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
+import { useMemo } from 'react';
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { isThisMonth } from '../utils/date';
 
-export default function ExpenseChart({ transactions, darkMode }) {
-  
-  // Pengeluaran bulan ini saja (sesuai label "bulan ini")
-  const expenses = (transactions || []).filter(t => t.type === 'Pengeluaran' && isThisMonth(t));
-  const totalExpense = expenses.reduce((acc, curr) => acc + Number(curr.amount), 0);
+const COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316', '#6366f1'];
 
-  // Grouping Data per kategori
-  const processData = () => {
-    const grouped = expenses.reduce((acc, curr) => {
-      const cat = curr.category || 'Lainnya';
-      if (!acc[cat]) acc[cat] = 0;
-      acc[cat] += Number(curr.amount);
+const CustomTooltip = ({ active, payload }) => {
+  if (active && payload?.length) {
+    const { name, value } = payload[0];
+    return (
+      <div className="rounded-lg border bg-card px-3 py-2 shadow-md text-xs">
+        <p className="font-semibold">{name}</p>
+        <p className="text-muted-foreground">Rp {Number(value).toLocaleString('id-ID')}</p>
+      </div>
+    );
+  }
+  return null;
+};
+
+const CustomLegend = ({ payload }) => (
+  <ul className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1.5">
+    {payload?.map((entry, i) => (
+      <li key={i} className="flex items-center gap-1.5 text-xs text-muted-foreground">
+        <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: entry.color }} />
+        <span className="truncate">{entry.value}</span>
+      </li>
+    ))}
+  </ul>
+);
+
+export default function ExpenseChart({ transactions }) {
+  const { data, total } = useMemo(() => {
+    // Pengeluaran bulan berjalan saja
+    const expenses = transactions.filter((t) => t.type === 'Pengeluaran' && isThisMonth(t));
+    const totalAmt = expenses.reduce((s, t) => s + Number(t.amount || 0), 0);
+
+    const grouped = expenses.reduce((acc, t) => {
+      const cat = t.category || 'Lainnya';
+      acc[cat] = (acc[cat] || 0) + Number(t.amount || 0);
       return acc;
     }, {});
 
-    return Object.keys(grouped).map(key => ({
-      name: key,
-      value: grouped[key]
-    }));
-  };
+    const chartData = Object.entries(grouped)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value);
 
-  const data = processData();
-  const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4'];
+    return { data: chartData, total: totalAmt };
+  }, [transactions]);
 
   return (
-    <div className={`p-6 rounded-2xl shadow-lg border flex flex-col items-center justify-center relative overflow-hidden ${darkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'}`}>
-      
-      {/* Header dengan Ikon */}
-      <h3 className={`font-bold text-lg mb-2 w-full text-center flex items-center justify-center gap-2 ${darkMode ? 'text-slate-200' : 'text-slate-700'}`}>
-        Komposisi Pengeluaran
-      </h3>
-      <p className={`text-sm mb-6 ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>Berdasarkan kategori bulan ini</p>
-
-      {data.length > 0 ? (
-        <div className="w-full h-[250px] relative">
-          {/* Teks di Tengah Donut */}
-          <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none z-10">
-             <p className={`text-xs font-medium ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>Total Keluar</p>
-             <p className={`text-lg font-bold ${darkMode ? 'text-slate-200' : 'text-slate-800'}`}>
-               Rp {(totalExpense/1000).toFixed(0)}k
-             </p>
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="text-base">Komposisi Pengeluaran</CardTitle>
+        <p className="text-xs text-muted-foreground">Berdasarkan kategori (bulan ini)</p>
+      </CardHeader>
+      <CardContent>
+        {data.length > 0 ? (
+          <div className="relative h-56">
+            {/* Center label */}
+            <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center z-10">
+              <p className="text-xs text-muted-foreground">Total Keluar</p>
+              <p className="text-base font-bold">
+                Rp {(total / 1000).toFixed(0)}k
+              </p>
+            </div>
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={data}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={65}
+                  outerRadius={88}
+                  paddingAngle={3}
+                  dataKey="value"
+                  cornerRadius={5}
+                >
+                  {data.map((_, i) => (
+                    <Cell key={i} fill={COLORS[i % COLORS.length]} strokeWidth={0} />
+                  ))}
+                </Pie>
+                <Tooltip content={<CustomTooltip />} />
+                <Legend content={<CustomLegend />} />
+              </PieChart>
+            </ResponsiveContainer>
           </div>
-
-          <ResponsiveContainer width="100%" height="100%">
-            <PieChart>
-              <Pie
-                data={data}
-                cx="50%"
-                cy="50%"
-                innerRadius={70}
-                outerRadius={90}
-                paddingAngle={4}
-                dataKey="value"
-                cornerRadius={6}
-              >
-                {data.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} stroke={darkMode ? '#1e293b' : '#fff'} strokeWidth={2} />
-                ))}
-              </Pie>
-              <Tooltip 
-                formatter={(value) => `Rp ${Number(value).toLocaleString('id-ID')}`}
-                contentStyle={{ backgroundColor: darkMode ? '#1e293b' : '#fff', borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                itemStyle={{ fontWeight: 'bold' }}
-              />
-            </PieChart>
-          </ResponsiveContainer>
-        </div>
-      ) : (
-        <div className="h-[250px] flex flex-col items-center justify-center text-slate-400 opacity-70">
-          <span className="text-5xl mb-3 grayscale">🍩</span>
-          <p className="font-medium">Belum ada data pengeluaran bulan ini</p>
-        </div>
-      )}
-    </div>
+        ) : (
+          <div className="flex h-56 flex-col items-center justify-center gap-2 text-muted-foreground">
+            <span className="text-4xl grayscale opacity-50">🍩</span>
+            <p className="text-sm">Belum ada data pengeluaran bulan ini</p>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }

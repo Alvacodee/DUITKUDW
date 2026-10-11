@@ -1,55 +1,47 @@
-import React from 'react';
+import { Wallet } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
-export default function Footer({ darkMode }) {
-  const currentYear = new Date().getFullYear();
+const LINKS = [
+  { label: 'Syarat Layanan',          to: '/terms' },
+  { label: 'Kebijakan Privasi',       to: '/privacy' },
+  { label: 'Kebijakan Pengembalian',  to: '/refund' },
+  { label: 'Hubungi Support',         to: '/contact' },
+];
 
+export default function Footer() {
   return (
-    <footer className={`w-full py-10 border-t transition-colors duration-300 mt-auto ${
-      darkMode 
-        ? 'bg-slate-900 border-slate-800 text-slate-500'
-        : 'bg-white border-slate-200 text-slate-500'
-    }`}>
-      
-      <div className="max-w-7xl mx-auto px-6 lg:px-8">
-        <div className="flex flex-col md:flex-row justify-between items-center gap-6 md:gap-0">
-
-          {/* BAGIAN KIRI */}
-          <div className="flex flex-col items-center md:items-start gap-1">
-            <h3 className="font-bold text-sm tracking-widest uppercase mb-1">
-              <span className="text-blue-500">DUITKUDW</span>
-            </h3>
-            <p className="text-xs opacity-80">
-              &copy; {currentYear} Hak cipta dilindungi undang-undang.
-            </p>
+    <footer className="w-full border-t border-border bg-background">
+      <div className="flex flex-col items-center justify-between gap-3 px-6 py-4 sm:flex-row">
+        {/* Brand */}
+        <div className="flex items-center gap-2 shrink-0">
+          <div className="flex h-5 w-5 items-center justify-center rounded-md bg-primary">
+            <Wallet size={11} className="text-primary-foreground" />
           </div>
-
-          {/* BAGIAN KANAN: Ubah <a> menjadi <Link> */}
-          <div className="flex flex-wrap justify-center md:justify-end items-center gap-x-8 gap-y-2 text-xs font-medium">
-            
-            <Link to="/terms" className="hover:text-blue-500 transition-colors duration-200">
-              Syarat Layanan
-            </Link>
-            
-            <Link to="/privacy" className="hover:text-blue-500 transition-colors duration-200">
-              Kebijakan Privasi
-            </Link>
-            
-            <Link to="/refund" className="hover:text-blue-500 transition-colors duration-200">
-              Kebijakan Pengembalian
-            </Link>
-            
-            <Link to="/contact" className="hover:text-blue-500 transition-colors duration-200">
-              Hubungi Support
-            </Link>
-            
-            <a href="mailto:duitkudw.official@gmail.com" className={`ml-2 transition-colors duration-200 hover:text-blue-500 ${darkMode ? 'text-slate-400' : 'text-slate-600'}`}>
-              duitkudw.official@gmail.com
-            </a>
-          </div>
-
+          <span className="text-xs font-bold">DUITKUDW</span>
+          <span className="text-xs text-muted-foreground hidden sm:inline">
+            &copy; {new Date().getFullYear()}
+          </span>
         </div>
+
+        {/* Links */}
+        <nav className="flex flex-wrap justify-center gap-x-4 gap-y-1">
+          {LINKS.map((l) => (
+            <Link
+              key={l.to}
+              to={l.to}
+              className="text-xs text-muted-foreground transition-colors hover:text-foreground"
+            >
+              {l.label}
+            </Link>
+          ))}
+          <a
+            href="mailto:duitkudw.official@gmail.com"
+            className="text-xs text-muted-foreground transition-colors hover:text-foreground"
+          >
+            duitkudw.official@gmail.com
+          </a>
+        </nav>
       </div>
-    </footer> 
+    </footer>
   );
 }
