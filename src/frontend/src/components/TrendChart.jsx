@@ -1,113 +1,125 @@
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { useMemo } from 'react';
+import {
+  AreaChart, Area, XAxis, YAxis,
+  CartesianGrid, Tooltip, ResponsiveContainer,
+} from 'recharts';
+import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 
-export default function TrendChart({ transactions, darkMode, mode = 'daily' }) {
-  
-  // FUNGSI PROSES DATA
-  const processData = () => {
-    // Cek Data Mentah
-    if (!transactions || !Array.isArray(transactions)) return [];
+function processData(transactions, mode) {
+  if (!transactions?.length) return [];
 
-    // Filter Pengeluaran (Lebih Robust/Kuat)
-    // Kita terima: "Pengeluaran", "pengeluaran", "expense", "Expense"
-    const expenses = transactions.filter(t => {
-      const type = t.type ? t.type.toLowerCase() : '';
-      return type === 'pengeluaran' || type === 'expense';
-    });
+  const expenses = transactions.filter((t) => {
+    const type = t.type?.toLowerCase() || '';
+    return type === 'pengeluaran' || type === 'expense';
+  });
 
-    console.log(`[TrendChart ${mode}] Total Transaksi:`, transactions.length);
-    console.log(`[TrendChart ${mode}] Filtered Expenses:`, expenses.length);
-    if (expenses.length > 0) {
-      console.log(`[TrendChart ${mode}] Sample Data:`, expenses[0]);
-    }
+  const grouped = expenses.reduce((acc, t) => {
+    const raw = t.date || t.created_at || t.CreatedAt;
+    if (!raw) return acc;
+    try {
+      const d = new Date(raw);
+      if (isNaN(d.getTime())) return acc;
+      const key =
+        mode === 'monthly'
+          ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+          : d.toISOString().split('T')[0];
+      acc[key] = (acc[key] || 0) + Number(t.amount);
+    } catch { /* skip */ }
+    return acc;
+  }, {});
 
-    // Grouping Data
-    const grouped = expenses.reduce((acc, curr) => {
-      // Coba ambil tanggal dari berbagai kemungkinan field
-      // Prioritas: t.date (input manual) -> t.created_at (database) -> t.CreatedAt (Go default)
-      const rawDate = curr.date || curr.created_at || curr.CreatedAt;
-      
-      if (!rawDate) return acc;
-
-      try {
-        const dateObj = new Date(rawDate);
-        
-        // Cek apakah tanggal valid
-        if (isNaN(dateObj.getTime())) {
-          console.warn("Tanggal invalid ditemukan:", rawDate);
-          return acc;
-        }
-
-        let key;
-        if (mode === 'monthly') {
-          // Format: YYYY-MM
-          key = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}`;
-        } else {
-          // Format: YYYY-MM-DD
-          key = dateObj.toISOString().split('T')[0];
-        }
-
-        if (!acc[key]) acc[key] = 0;
-        
-        // Pastikan amount dibaca sebagai angka (handle jika string)
-        acc[key] += Number(curr.amount);
-      } catch (e) {
-        console.error("Error processing item:", curr, e);
-      }
-      return acc;
-    }, {});
-
-    // Ubah ke Array
-    const result = Object.keys(grouped).sort().map(key => {
-      const dateObj = new Date(key + (mode === 'monthly' ? '-01' : ''));
+  return Object.keys(grouped)
+    .sort()
+    .map((key) => {
+      const d = new Date(key + (mode === 'monthly' ? '-01' : ''));
       return {
-        name: mode === 'monthly' 
-          ? dateObj.toLocaleDateString('id-ID', { month: 'short', year: 'numeric' }) 
-          : dateObj.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }),
-        total: grouped[key]
+        name:
+          mode === 'monthly'
+            ? d.toLocaleDateString('id-ID', { month: 'short', year: 'numeric' })
+            : d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }),
+        total: grouped[key],
       };
     });
+}
 
-    console.log(`[TrendChart ${mode}] Final Data:`, result);
-    return result;
-  };
+const CustomTooltip = ({ active, payload, label }) => {
+  if (active && payload?.length) {
+    return (
+      <div className="rounded-lg border bg-card px-3 py-2 shadow-md text-xs">
+        <p className="font-semibold text-foreground">{label}</p>
+        <p className="text-muted-foreground">
+          Rp {payload[0].value.toLocaleString('id-ID')}
+        </p>
+      </div>
+    );
+  }
+  return null;
+};
 
-  const data = processData();
+export default function TrendChart({ transactions, mode = 'daily' }) {
+  const data    = useMemo(() => processData(transactions, mode), [transactions, mode]);
+  const isMonth = mode === 'monthly';
+  const stroke  = isMonth ? '#8b5cf6' : '#10b981';
+  const gradId  = `grad-${mode}`;
 
   return (
-    <div className={`p-6 rounded-xl shadow-lg flex flex-col items-center transition-colors ${darkMode ? 'bg-slate-800' : 'bg-white'}`}>
-      
-      <h2 className={`text-xl font-semibold mb-6 border-b pb-2 w-full ${darkMode ? 'text-slate-200 border-slate-700' : 'text-slate-700'}`}>
-        Pengeluaran {mode === 'monthly' ? 'Bulanan' : 'Harian'}
-      </h2>
-
-      {data.length > 0 ? (
-        <div className="w-full h-[300px]">
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={data} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-              <defs>
-                <linearGradient id={`colorTotal${mode}`} x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor={mode === 'monthly' ? "#8b5cf6" : "#3b82f6"} stopOpacity={0.8}/>
-                  <stop offset="95%" stopColor={mode === 'monthly' ? "#8b5cf6" : "#3b82f6"} stopOpacity={0}/>
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={darkMode ? "#334155" : "#e2e8f0"} />
-              <XAxis dataKey="name" tick={{ fill: darkMode ? '#94a3b8' : '#64748b', fontSize: 12 }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fill: darkMode ? '#94a3b8' : '#64748b', fontSize: 12 }} axisLine={false} tickLine={false} tickFormatter={(value) => `${(value / 1000).toFixed(0)}k`} />
-              <Tooltip 
-                contentStyle={{ backgroundColor: darkMode ? '#1e293b' : '#fff', borderRadius: '8px', border: 'none' }} 
-                itemStyle={{ color: mode === 'monthly' ? '#8b5cf6' : '#3b82f6' }}
-                formatter={(value) => [`Rp ${value.toLocaleString('id-ID')}`, 'Total']}
-              />
-              <Area type="monotone" dataKey="total" stroke={mode === 'monthly' ? "#8b5cf6" : "#3b82f6"} strokeWidth={3} fill={`url(#colorTotal${mode})`} />
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
-      ) : (
-        <div className="h-[300px] w-full flex flex-col items-center justify-center text-slate-400 gap-2 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl">
-          <span className="text-4xl">📉</span>
-          <p>Belum ada data history pengeluaran</p>
-        </div>
-      )}
-    </div>
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="text-base">
+          Pengeluaran {isMonth ? 'Bulanan' : 'Harian'}
+        </CardTitle>
+        <p className="text-xs text-muted-foreground">
+          {isMonth ? 'Tren pengeluaran per bulan' : 'Rincian pengeluaran harian'}
+        </p>
+      </CardHeader>
+      <CardContent>
+        {data.length > 0 ? (
+          <div className="h-[220px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={data} margin={{ top: 4, right: 4, left: -16, bottom: 0 }}>
+                <defs>
+                  <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%"  stopColor={stroke} stopOpacity={0.25} />
+                    <stop offset="95%" stopColor={stroke} stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid
+                  strokeDasharray="3 3"
+                  vertical={false}
+                  stroke="var(--border)"
+                />
+                <XAxis
+                  dataKey="name"
+                  tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }}
+                  axisLine={false}
+                  tickLine={false}
+                />
+                <YAxis
+                  tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }}
+                  axisLine={false}
+                  tickLine={false}
+                  tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`}
+                />
+                <Tooltip content={<CustomTooltip />} />
+                <Area
+                  type="monotone"
+                  dataKey="total"
+                  stroke={stroke}
+                  strokeWidth={2.5}
+                  fill={`url(#${gradId})`}
+                  dot={false}
+                  activeDot={{ r: 4, strokeWidth: 0 }}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        ) : (
+          <div className="flex h-[220px] flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed text-muted-foreground">
+            <span className="text-3xl grayscale opacity-50">📉</span>
+            <p className="text-sm">Belum ada data pengeluaran</p>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }

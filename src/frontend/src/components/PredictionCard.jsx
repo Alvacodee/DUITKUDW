@@ -1,97 +1,98 @@
-import React from 'react';
+import { Sparkles, TrendingUp, TrendingDown, RefreshCw } from 'lucide-react';
+import { Button } from './ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
+import { cn } from '../lib/utils';
 
-export default function PredictionCard({ onPredict, prediction, loading, darkMode }) {
-  
-  // Format Rupiah
-  const formatRupiah = (num) => "Rp " + Math.abs(num).toLocaleString('id-ID');
+function formatRp(n) {
+  return 'Rp ' + Math.abs(n).toLocaleString('id-ID');
+}
+
+export default function PredictionCard({ onPredict, prediction, loading }) {
+  const isUp = prediction?.status?.toLowerCase().includes('naik');
 
   return (
-    <div className={`relative overflow-hidden rounded-3xl p-8 shadow-2xl border transition-all duration-500 ${darkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-blue-100'}`}>
-      
-      {/* Background Decoration (Glow Effect) */}
-      <div className={`absolute top-0 right-0 w-64 h-64 bg-blue-500/10 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none`}></div>
-      <div className={`absolute bottom-0 left-0 w-64 h-64 bg-purple-500/10 rounded-full blur-3xl -ml-16 -mb-16 pointer-events-none`}></div>
+    <Card className="relative overflow-hidden">
+      {/* Ambient glow */}
+      <div className="pointer-events-none absolute -right-12 -top-12 h-40 w-40 rounded-full bg-primary/10 blur-3xl" />
+      <div className="pointer-events-none absolute -bottom-12 -left-12 h-40 w-40 rounded-full bg-purple-500/10 blur-3xl" />
 
-      {/* HEADER */}
-      <div className="relative z-10 text-center mb-8">
-        <div className="inline-flex items-center gap-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white px-4 py-1.5 rounded-full text-sm font-bold shadow-lg mb-4 animate-fade-in">
-           <span>🤖</span> AI Financial Consultant
+      <CardHeader className="relative pb-4 text-center">
+        <div className="mx-auto mb-3 inline-flex items-center gap-2 rounded-full bg-primary/10 px-4 py-1.5 text-xs font-semibold text-primary">
+          <Sparkles size={13} /> AI Financial Consultant
         </div>
-        <h2 className={`text-2xl font-bold ${darkMode ? 'text-white' : 'text-slate-800'}`}>
-          Proyeksi Pengeluaran Bulan Depan
-        </h2>
-        <p className={`mt-2 text-sm ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
-          Biarkan algoritma membaca pola transaksimu untuk memprediksi masa depan.
+        <CardTitle className="text-xl">Proyeksi Pengeluaran Bulan Depan</CardTitle>
+        <p className="text-sm text-muted-foreground mt-1">
+          Algoritma membaca pola transaksimu untuk memprediksi masa depan.
         </p>
-      </div>
+      </CardHeader>
 
-      {/* CONTENT AREA */}
-      <div className="relative z-10 flex flex-col items-center justify-center min-h-[180px]">
-        
-        {loading ? (
-          // LOADING STATE
-          <div className="flex flex-col items-center animate-pulse">
-            <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-            <p className="text-blue-500 font-bold">Sedang Menganalisis Data...</p>
-            <p className="text-xs text-slate-400 mt-1">Membaca pola "Pengeluaran"...</p>
+      <CardContent className="relative flex min-h-[200px] flex-col items-center justify-center">
+        {loading && (
+          <div className="flex flex-col items-center gap-3 animate-fade-in">
+            <div className="h-10 w-10 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+            <p className="text-sm font-medium text-primary">Menganalisis data...</p>
+            <p className="text-xs text-muted-foreground">Membaca pola pengeluaran</p>
           </div>
-        ) : prediction ? (
-          // RESULT STATE
-          <div className="text-center animate-fade-in-up w-full">
-            
-            <p className={`text-sm font-semibold uppercase tracking-wider mb-1 ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+        )}
+
+        {!loading && prediction && (
+          <div className="w-full space-y-4 animate-fade-in-up text-center">
+            <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
               Estimasi Total Pengeluaran
             </p>
-            
-            {/* Angka Besar Glowing */}
-            <div className={`text-5xl md:text-6xl font-extrabold mb-4 bg-clip-text text-transparent bg-gradient-to-r ${
-                prediction.status.includes("Naik") 
-                ? 'from-red-400 to-orange-500 drop-shadow-red' // Merah jika naik
-                : 'from-emerald-400 to-teal-500 drop-shadow-emerald' // Hijau jika turun
-            }`}>
-              {formatRupiah(prediction.prediction)}
-            </div>
 
-            {/* Badge Status */}
-            <div className={`inline-block px-4 py-2 rounded-xl text-sm font-bold border mb-4 ${
-                prediction.status.includes("Naik") 
-                ? 'bg-red-500/10 border-red-500/20 text-red-500' 
-                : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500'
-            }`}>
+            <p
+              className={cn(
+                'text-5xl font-extrabold',
+                isUp
+                  ? 'bg-gradient-to-r from-rose-500 to-orange-500 bg-clip-text text-transparent'
+                  : 'bg-gradient-to-r from-emerald-500 to-teal-500 bg-clip-text text-transparent'
+              )}
+            >
+              {formatRp(prediction.prediction)}
+            </p>
+
+            <div
+              className={cn(
+                'inline-flex items-center gap-2 rounded-full border px-4 py-1.5 text-sm font-semibold',
+                isUp
+                  ? 'border-rose-200 bg-rose-50 text-rose-600 dark:border-rose-800 dark:bg-rose-900/20 dark:text-rose-400'
+                  : 'border-emerald-200 bg-emerald-50 text-emerald-600 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-400'
+              )}
+            >
+              {isUp ? <TrendingUp size={15} /> : <TrendingDown size={15} />}
               {prediction.status}
             </div>
 
-            {/* Pesan Saran */}
-            <div className={`p-4 rounded-xl text-sm max-w-lg mx-auto leading-relaxed border ${
-                darkMode ? 'bg-slate-700/50 border-slate-600 text-slate-300' : 'bg-slate-50 border-slate-200 text-slate-600'
-            }`}>
-              " {prediction.message} "
+            <div className="mx-auto max-w-md rounded-lg border bg-muted/40 p-4 text-sm text-muted-foreground leading-relaxed">
+              "{prediction.message}"
             </div>
 
-            {/* Tombol Ramal Ulang */}
-            <button 
+            <button
               onClick={onPredict}
-              className="mt-8 text-sm text-blue-500 hover:text-blue-400 underline decoration-dotted underline-offset-4"
+              className="text-xs text-primary hover:underline flex items-center gap-1 mx-auto"
             >
-              Analisis Ulang
-            </button>
-          </div>
-        ) : (
-          // EMPTY STATE (BELUM RAMAL)
-          <div className="flex flex-col items-center">
-             <div className="text-6xl mb-4 grayscale opacity-50">🔮</div>
-             <p className={`mb-6 text-sm ${darkMode ? 'text-slate-500' : 'text-slate-400'}`}>
-               Belum ada ramalan. Klik tombol di bawah.
-             </p>
-             <button
-              onClick={onPredict}
-              className="px-8 py-4 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white rounded-2xl font-bold shadow-xl shadow-blue-500/30 transition transform hover:scale-105 active:scale-95 flex items-center gap-2"
-            >
-              <span>✨</span> Ramal Sekarang
+              <RefreshCw size={12} /> Analisis Ulang
             </button>
           </div>
         )}
-      </div>
-    </div>
+
+        {!loading && !prediction && (
+          <div className="flex flex-col items-center gap-4 animate-fade-in">
+            <span className="text-5xl grayscale opacity-40">🔮</span>
+            <p className="text-sm text-muted-foreground">
+              Belum ada prediksi. Klik tombol di bawah.
+            </p>
+            <Button
+              onClick={onPredict}
+              size="lg"
+              className="px-8 shadow-lg shadow-primary/30"
+            >
+              <Sparkles size={16} /> Ramal Sekarang
+            </Button>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }

@@ -1,35 +1,134 @@
-// Tambahkan prop 'text' di sini
-export default function DashboardStats({ transactions, darkMode, text }) {
-  const totalIncome = transactions.filter(t => t.type === 'Pemasukan').reduce((acc, curr) => acc + curr.amount, 0);
-  const totalExpense = transactions.filter(t => t.type === 'Pengeluaran').reduce((acc, curr) => acc + curr.amount, 0);
-  const balance = totalIncome - totalExpense;
+import { useMemo } from 'react';
+import { TrendingUp, TrendingDown, Minus, Wallet, ArrowDownLeft, ArrowUpRight } from 'lucide-react';
+import { Card, CardContent } from '../components/ui/card';
+import { cn } from '../lib/utils';
 
-  const formatRupiah = (num) => "Rp " + num.toLocaleString('id-ID');
+function getMonthTransactions(transactions, offset = 0) {
+  const now   = new Date();
+  const year  = now.getMonth() + 1 + offset <= 0
+    ? now.getFullYear() - 1
+    : now.getFullYear();
+  const month = ((now.getMonth() + offset) % 12 + 12) % 12;
 
-  // Fallback labels
-  const labels = text || {
-     balance: "💰 Saldo Saat Ini",
-     income: "📥 Total Pemasukan",
-     expense: "📤 Total Pengeluaran"
-  };
+  return transactions.filter((t) => {
+    const d = new Date(t.date || t.created_at || t.CreatedAt);
+    return d.getFullYear() === year && d.getMonth() === month;
+  });
+}
+
+function pctChange(curr, prev) {
+  if (prev === 0) return curr > 0 ? 100 : 0;
+  return ((curr - prev) / prev) * 100;
+}
+
+function StatCard({ label, value, icon: Icon, iconBg, change, changeLabel, positive }) {
+  const trend =
+    change > 1 ? 'up' : change < -1 ? 'down' : 'flat';
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-      <div className="bg-blue-600 text-white p-6 rounded-xl shadow-lg">
-        {/* Gunakan labels.balance */}
-        <div className="text-blue-100 text-sm mb-1">{labels.balance}</div>
-        <div className="text-3xl font-bold">{formatRupiah(balance)}</div>
-      </div>
-      <div className="bg-emerald-500 text-white p-6 rounded-xl shadow-lg">
-        {/* Gunakan labels.income */}
-        <div className="text-emerald-100 text-sm mb-1">{labels.income}</div>
-        <div className="text-2xl font-bold">{formatRupiah(totalIncome)}</div>
-      </div>
-      <div className="bg-rose-500 text-white p-6 rounded-xl shadow-lg">
-        {/* Gunakan labels.expense */}
-        <div className="text-rose-100 text-sm mb-1">{labels.expense}</div>
-        <div className="text-2xl font-bold">{formatRupiah(totalExpense)}</div>
-      </div>
+    <Card className="overflow-hidden">
+      <CardContent className="p-0">
+        <div className="flex items-start justify-between p-5">
+          <div className="space-y-1">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+              {label}
+            </p>
+            <p className="text-2xl font-bold tracking-tight">{value}</p>
+          </div>
+          <div className={cn('flex h-10 w-10 shrink-0 items-center justify-center rounded-xl', iconBg)}>
+            <Icon size={20} />
+          </div>
+        </div>
+
+        {/* Trend bar */}
+        <div className="border-t px-5 py-3 flex items-center gap-1.5">
+          {trend === 'up' && (
+            <TrendingUp
+              size={14}
+              className={cn(positive ? 'text-emerald-500' : 'text-rose-500')}
+            />
+          )}
+          {trend === 'down' && (
+            <TrendingDown
+              size={14}
+              className={cn(positive ? 'text-emerald-500' : 'text-emerald-500')}
+            />
+          )}
+          {trend === 'flat' && <Minus size={14} className="text-muted-foreground" />}
+
+          <span
+            className={cn(
+              'text-xs font-semibold',
+              trend === 'flat' && 'text-muted-foreground',
+              trend === 'up' && (positive ? 'text-emerald-500' : 'text-rose-500'),
+              trend === 'down' && 'text-emerald-500'
+            )}
+          >
+            {trend !== 'flat' && (change > 0 ? '+' : '')}
+            {change.toFixed(1)}%
+          </span>
+          <span className="text-xs text-muted-foreground">{changeLabel}</span>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+export default function DashboardStats({ transactions }) {
+  const fmt = (n) => 'Rp ' + Math.abs(n).toLocaleString('id-ID');
+
+  const { totalIncome, totalExpense, balance, incomeChange, expenseChange } = useMemo(() => {
+    const allIncome  = transactions.filter((t) => t.type === 'Pemasukan').reduce((s, t) => s + t.amount, 0);
+    const allExpense = transactions.filter((t) => t.type === 'Pengeluaran').reduce((s, t) => s + t.amount, 0);
+
+    const thisMonth = getMonthTransactions(transactions, 0);
+    const lastMonth = getMonthTransactions(transactions, -1);
+
+    const thisIncome  = thisMonth.filter((t) => t.type === 'Pemasukan').reduce((s, t) => s + t.amount, 0);
+    const thisExpense = thisMonth.filter((t) => t.type === 'Pengeluaran').reduce((s, t) => s + t.amount, 0);
+    const prevIncome  = lastMonth.filter((t) => t.type === 'Pemasukan').reduce((s, t) => s + t.amount, 0);
+    const prevExpense = lastMonth.filter((t) => t.type === 'Pengeluaran').reduce((s, t) => s + t.amount, 0);
+
+    return {
+      totalIncome:   allIncome,
+      totalExpense:  allExpense,
+      balance:       allIncome - allExpense,
+      incomeChange:  pctChange(thisIncome, prevIncome),
+      expenseChange: pctChange(thisExpense, prevExpense),
+    };
+  }, [transactions]);
+
+  const balanceChange = pctChange(totalIncome - totalExpense, totalIncome);
+
+  return (
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <StatCard
+        label="Saldo Total"
+        value={fmt(balance)}
+        icon={Wallet}
+        iconBg="bg-primary/10 text-primary"
+        change={balanceChange}
+        changeLabel="dari pemasukan"
+        positive
+      />
+      <StatCard
+        label="Total Pemasukan"
+        value={fmt(totalIncome)}
+        icon={ArrowDownLeft}
+        iconBg="bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400"
+        change={incomeChange}
+        changeLabel="vs bulan lalu"
+        positive
+      />
+      <StatCard
+        label="Total Pengeluaran"
+        value={fmt(totalExpense)}
+        icon={ArrowUpRight}
+        iconBg="bg-rose-100 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400"
+        change={expenseChange}
+        changeLabel="vs bulan lalu"
+        positive={false}
+      />
     </div>
   );
 }

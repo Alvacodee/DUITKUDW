@@ -1,176 +1,203 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef } from 'react';
+import { Camera, Save, User, Mail, Building2, BookOpen, FileText } from 'lucide-react';
+import { toast } from 'sonner';
+import { Button } from '../components/ui/button';
+import { Input } from '../components/ui/input';
+import { Label } from '../components/ui/label';
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import { Avatar, AvatarFallback, AvatarImage } from '../components/ui/avatar';
+import { Separator } from '../components/ui/separator';
 
-export default function ProfilePage({ user, profileImage, setProfileImage, darkMode }) {
-  // STATE FORM DATA (Ambil dari LocalStorage jika ada, atau default)
-  const [formData, setFormData] = useState(() => {
-    const savedData = localStorage.getItem('profileData');
-    return savedData ? JSON.parse(savedData) : {
-      fullName: user || "",
-      email: "",
-      campus: "",
-      role: "",
-      bio: ""
-    };
+const STORAGE_KEY = 'profileData';
+
+export default function ProfilePage({ user, profileImage, setProfileImage }) {
+  const fileRef = useRef(null);
+  const [form, setForm] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {
+        fullName: user || '',
+        email: '',
+        campus: '',
+        role: '',
+        bio: '',
+      };
+    } catch {
+      return { fullName: user || '', email: '', campus: '', role: '', bio: '' };
+    }
   });
 
-  const fileInputRef = useRef(null);
-  const [isSaved, setIsSaved] = useState(false); // Indikator simpan berhasil
+  const set = (key) => (e) => setForm((p) => ({ ...p, [key]: e.target.value }));
 
-  // FUNGSI MENANGANI KETIKAN USER
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
-    setIsSaved(false); // Reset status simpan jika ada perubahan
-  };
-
-  // FUNGSI SIMPAN PERUBAHAN
   const handleSave = () => {
-    localStorage.setItem('profileData', JSON.stringify(formData));
-    setIsSaved(true);
-    setTimeout(() => setIsSaved(false), 3000); // Hilangkan pesan sukses setelah 3 detik
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(form));
+    toast.success('Profil berhasil disimpan!');
   };
 
-  // FUNGSI GANTI FOTO
   const handleImageUpload = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const base64String = reader.result;
-        setProfileImage(base64String);
-        localStorage.setItem('profileImage', base64String);
-      };
-      reader.readAsDataURL(file);
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error('Ukuran file maksimal 2MB.');
+      return;
     }
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const b64 = reader.result;
+      setProfileImage(b64);
+      localStorage.setItem('profileImage', b64);
+      toast.success('Foto profil diperbarui!');
+    };
+    reader.readAsDataURL(file);
   };
 
   return (
-    <div className="animate-fade-in max-w-4xl mx-auto">
-      <h2 className={`text-2xl font-bold mb-6 ${darkMode ? 'text-white' : 'text-slate-800'}`}>Profile Settings</h2>
+    <div className="mx-auto max-w-3xl animate-fade-in space-y-6">
+      <div>
+        <h2 className="text-2xl font-bold">Profil Pengguna</h2>
+        <p className="text-sm text-muted-foreground">Kelola informasi pribadimu</p>
+      </div>
 
-      <div className={`rounded-xl shadow-lg border overflow-hidden ${darkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'}`}>
-        
-        {/* HEADER / COVER BACKGROUND */}
-        <div className="h-32 bg-gradient-to-r from-blue-600 to-blue-400"></div>
-
-        <div className="px-8 pb-8">
-          
-          {/* FOTO PROFIL */}
-          <div className="relative -mt-16 mb-6 flex flex-col sm:flex-row justify-between items-end gap-4">
-            <div className="relative group">
-              <div className={`w-32 h-32 rounded-full border-4 overflow-hidden flex items-center justify-center ${darkMode ? 'border-slate-800 bg-slate-700' : 'border-white bg-slate-100'}`}>
-                {profileImage ? (
-                  <img src={profileImage} alt="Profile" className="w-full h-full object-cover" />
-                ) : (
-                  <span className="text-4xl font-bold text-slate-400">{user ? user.charAt(0).toUpperCase() : 'U'}</span>
-                )}
-              </div>
-              
-              {/* Tombol Kamera Overlay */}
-              <button 
-                onClick={() => fileInputRef.current.click()}
-                className="absolute bottom-0 right-0 p-2 bg-blue-600 text-white rounded-full hover:bg-blue-700 transition shadow-lg border-2 border-white dark:border-slate-800"
+      {/* Avatar card */}
+      <Card>
+        <CardContent className="pt-6">
+          <div className="flex flex-col items-center gap-5 sm:flex-row sm:items-start">
+            <div className="relative">
+              <Avatar className="h-24 w-24 ring-4 ring-border">
+                <AvatarImage src={profileImage} alt={user} />
+                <AvatarFallback className="text-2xl font-bold bg-primary/10 text-primary">
+                  {user ? user.charAt(0).toUpperCase() : 'U'}
+                </AvatarFallback>
+              </Avatar>
+              <button
+                onClick={() => fileRef.current?.click()}
+                className="absolute bottom-0 right-0 flex h-7 w-7 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-md ring-2 ring-card transition hover:bg-primary/90"
                 title="Ganti Foto"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                  <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
-                </svg>
+                <Camera size={13} />
               </button>
-              <input 
-                type="file" 
-                ref={fileInputRef} 
-                className="hidden" 
+              <input
+                ref={fileRef}
+                type="file"
+                className="hidden"
                 accept="image/*"
                 onChange={handleImageUpload}
               />
             </div>
-            
-            {/* Tombol Simpan */}
-            <div className="flex flex-col items-end">
-                <button 
-                    onClick={handleSave}
-                    className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold transition shadow-md active:scale-95"
-                >
-                    Simpan Perubahan
-                </button>
-                {isSaved && <span className="text-emerald-500 text-sm mt-2 font-medium animate-pulse">✓ Data Berhasil Disimpan!</span>}
+
+            <div className="flex flex-col items-center text-center sm:items-start sm:text-left">
+              <p className="text-lg font-bold">{form.fullName || user || 'Username'}</p>
+              <p className="text-sm text-muted-foreground">
+                {form.role || 'Role belum diisi'} • {form.campus || 'Kampus belum diisi'}
+              </p>
+              {form.bio && (
+                <p className="mt-2 text-sm text-muted-foreground max-w-sm">{form.bio}</p>
+              )}
             </div>
           </div>
+        </CardContent>
+      </Card>
 
-          {/* FORM DATA DIRI */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            
-            {/* Nama Lengkap */}
-            <div className="space-y-2">
-              <label className={`text-sm font-semibold ${darkMode ? 'text-slate-400' : 'text-slate-600'}`}>Nama Lengkap</label>
-              <input 
-                type="text" 
-                name="fullName"
-                value={formData.fullName} 
-                onChange={handleChange} // Fungsi pencatat ketikan
-                className={`w-full p-3 rounded-lg border focus:ring-2 focus:ring-blue-500 outline-none transition ${darkMode ? 'bg-slate-700 border-slate-600 text-white placeholder-slate-400' : 'bg-slate-50 border-slate-200 text-slate-800'}`} 
+      {/* Form card */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Informasi Pribadi</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+            {/* Nama */}
+            <div className="space-y-1.5">
+              <Label className="flex items-center gap-1.5">
+                <User size={13} className="text-muted-foreground" /> Nama Lengkap
+              </Label>
+              <Input
+                type="text"
                 placeholder="Masukkan nama lengkap"
+                value={form.fullName}
+                onChange={set('fullName')}
               />
             </div>
 
             {/* Email */}
-            <div className="space-y-2">
-              <label className={`text-sm font-semibold ${darkMode ? 'text-slate-400' : 'text-slate-600'}`}>Email Institusi</label>
-              <input 
-                type="email" 
-                name="email"
-                value={formData.email} 
-                onChange={handleChange}
-                className={`w-full p-3 rounded-lg border focus:ring-2 focus:ring-blue-500 outline-none transition ${darkMode ? 'bg-slate-700 border-slate-600 text-white placeholder-slate-400' : 'bg-slate-50 border-slate-200 text-slate-800'}`} 
-                placeholder="email@kampus.ac.id"
+            <div className="space-y-1.5">
+              <Label className="flex items-center gap-1.5">
+                <Mail size={13} className="text-muted-foreground" /> Email Institusi
+              </Label>
+              <Input
+                type="email"
+                placeholder="nama@mahasiswa.itb.ac.id"
+                value={form.email}
+                onChange={set('email')}
               />
             </div>
 
             {/* Kampus */}
-            <div className="space-y-2">
-              <label className={`text-sm font-semibold ${darkMode ? 'text-slate-400' : 'text-slate-600'}`}>Kampus / Instansi</label>
-              <input 
-                type="text" 
-                name="campus"
-                value={formData.campus} 
-                onChange={handleChange}
-                className={`w-full p-3 rounded-lg border focus:ring-2 focus:ring-blue-500 outline-none transition ${darkMode ? 'bg-slate-700 border-slate-600 text-white placeholder-slate-400' : 'bg-slate-50 border-slate-200 text-slate-800'}`} 
-                placeholder="Nama Kampus"
+            <div className="space-y-1.5">
+              <Label className="flex items-center gap-1.5">
+                <Building2 size={13} className="text-muted-foreground" /> Kampus / Instansi
+              </Label>
+              <Input
+                type="text"
+                placeholder="Institut Teknologi Bandung"
+                value={form.campus}
+                onChange={set('campus')}
               />
             </div>
 
             {/* Role */}
-            <div className="space-y-2">
-              <label className={`text-sm font-semibold ${darkMode ? 'text-slate-400' : 'text-slate-600'}`}>Role / Jurusan</label>
-              <input 
-                type="text" 
-                name="role"
-                value={formData.role} 
-                onChange={handleChange}
-                className={`w-full p-3 rounded-lg border focus:ring-2 focus:ring-blue-500 outline-none transition ${darkMode ? 'bg-slate-700 border-slate-600 text-white placeholder-slate-400' : 'bg-slate-50 border-slate-200 text-slate-800'}`} 
-                placeholder="Jurusan / Pekerjaan"
+            <div className="space-y-1.5">
+              <Label className="flex items-center gap-1.5">
+                <BookOpen size={13} className="text-muted-foreground" /> Role / Jurusan
+              </Label>
+              <Input
+                type="text"
+                placeholder="Teknik Informatika"
+                value={form.role}
+                onChange={set('role')}
               />
             </div>
-
-            {/* Bio */}
-            <div className="md:col-span-2 space-y-2">
-              <label className={`text-sm font-semibold ${darkMode ? 'text-slate-400' : 'text-slate-600'}`}>Bio Singkat</label>
-              <textarea 
-                rows="3"
-                name="bio"
-                value={formData.bio}
-                onChange={handleChange}
-                className={`w-full p-3 rounded-lg border focus:ring-2 focus:ring-blue-500 outline-none transition ${darkMode ? 'bg-slate-700 border-slate-600 text-white placeholder-slate-400' : 'bg-slate-50 border-slate-200 text-slate-800'}`} 
-                placeholder="Ceritakan sedikit tentang dirimu..."
-              ></textarea>
-            </div>
-
           </div>
-        </div>
-      </div>
+
+          <Separator />
+
+          {/* Bio */}
+          <div className="space-y-1.5">
+            <Label className="flex items-center gap-1.5">
+              <FileText size={13} className="text-muted-foreground" /> Bio Singkat
+            </Label>
+            <textarea
+              rows={3}
+              placeholder="Ceritakan sedikit tentang dirimu..."
+              value={form.bio}
+              onChange={set('bio')}
+              className="flex min-h-[80px] w-full resize-none rounded-lg border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            />
+          </div>
+
+          <div className="flex justify-end pt-1">
+            <Button onClick={handleSave}>
+              <Save size={15} /> Simpan Perubahan
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Account info */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Informasi Akun</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium">Username</p>
+              <p className="text-sm text-muted-foreground">@{user}</p>
+            </div>
+            <span className="inline-flex items-center rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
+              Aktif
+            </span>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
