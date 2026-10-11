@@ -2,9 +2,12 @@ package handlers
 
 import (
 	"crypto/rand"
+	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
+	"finance-tracker-backend/config"
+	"finance-tracker-backend/models"
 	"fmt"
 	"math/big"
 	"net/http"
@@ -14,15 +17,20 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5" // Pastikan pakai v5 agar sama dengan middleware
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
+	"gorm.io/gorm/clause"
 )
 
 // Konfigurasi OAuth
 var googleOauthConfig *oauth2.Config
 
 const oauthStateCookie = "oauthstate"
+
+// Umur kode login sekali pakai yang dikirim ke frontend
+const loginCodeTTL = 2 * time.Minute
 
 func InitGoogleAuth() {
 	googleOauthConfig = &oauth2.Config{
@@ -65,6 +73,17 @@ type GoogleUser struct {
 	Picture       string `json:"picture"`
 }
 
+// Redirect ke frontend dengan data di fragment URL (#...).
+// Fragment tidak dikirim browser ke server mana pun, jadi tidak tercatat di access log.
+func redirectToFrontend(w http.ResponseWriter, r *http.Request, fragment url.Values) {
+	target := strings.TrimRight(os.Getenv("FRONTEND_URL"), "/") + "/#" + fragment.Encode()
+	http.Redirect(w, r, target, http.StatusSeeOther)
+}
+
+func redirectLoginError(w http.ResponseWriter, r *http.Request, msg string) {
+	redirectToFrontend(w, r, url.Values{"login_error": {msg}})
+}
+
 func HandleGoogleCallback(db *sql.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		cookie, err := r.Cookie(oauthStateCookie)
@@ -78,7 +97,7 @@ func HandleGoogleCallback(db *sql.DB) http.HandlerFunc {
 		code := r.FormValue("code")
 		token, err := googleOauthConfig.Exchange(r.Context(), code)
 		if err != nil {
-			http.Error(w, "Gagal terhubung dengan server Google.", http.StatusInternalServerError)
+			redirectLoginError(w, r, "Gagal terhubung dengan server Google.")
 			return
 		}
 
@@ -86,18 +105,18 @@ func HandleGoogleCallback(db *sql.DB) http.HandlerFunc {
 		client := googleOauthConfig.Client(r.Context(), token)
 		resp, err := client.Get("https://www.googleapis.com/oauth2/v2/userinfo")
 		if err != nil {
-			http.Error(w, "Gagal mengambil profil akun Google Anda.", http.StatusInternalServerError)
+			redirectLoginError(w, r, "Gagal mengambil profil akun Google Anda.")
 			return
 		}
 		defer resp.Body.Close()
 
 		var googleUser GoogleUser
 		if resp.StatusCode != http.StatusOK || json.NewDecoder(resp.Body).Decode(&googleUser) != nil || googleUser.Email == "" {
-			http.Error(w, "Gagal membaca profil akun Google Anda.", http.StatusInternalServerError)
+			redirectLoginError(w, r, "Gagal membaca profil akun Google Anda.")
 			return
 		}
 		if !googleUser.VerifiedEmail {
-			http.Error(w, "Email Google Anda belum terverifikasi.", http.StatusForbidden)
+			redirectLoginError(w, r, "Email Google Anda belum terverifikasi.")
 			return
 		}
 		email := strings.ToLower(googleUser.Email)
@@ -106,8 +125,8 @@ func HandleGoogleCallback(db *sql.DB) http.HandlerFunc {
 		var userID int
 		var username string
 
-		// Cek apakah user sudah terdaftar? (abaikan user yang sudah di-soft delete)
-		err = db.QueryRow("SELECT id, username FROM users WHERE email = $1 AND deleted_at IS NULL", email).Scan(&userID, &username)
+		// Cek apakah user sudah terdaftar? (case-insensitive, abaikan user yang sudah di-soft delete)
+		err = db.QueryRow("SELECT id, username FROM users WHERE LOWER(email) = $1 AND deleted_at IS NULL", email).Scan(&userID, &username)
 
 		if err == sql.ErrNoRows {
 			// USER BARU: Buat username unik dari nama Google + 4 angka acak.
@@ -127,29 +146,86 @@ func HandleGoogleCallback(db *sql.DB) http.HandlerFunc {
 			if err != nil {
 				// Tidak memunculkan kode SQL ke user, hanya ke log server
 				fmt.Println("Error insert database:", err.Error())
-				http.Error(w, "Terjadi kesalahan pada sistem saat mendaftarkan akun Anda. Silakan coba lagi nanti.", http.StatusInternalServerError)
+				redirectLoginError(w, r, "Terjadi kesalahan saat mendaftarkan akun Anda. Silakan coba lagi nanti.")
 				return
 			}
 		} else if err != nil {
 			fmt.Println("Error cek email:", err.Error())
-			http.Error(w, "Terjadi kesalahan saat memeriksa data akun Anda.", http.StatusInternalServerError)
+			redirectLoginError(w, r, "Terjadi kesalahan saat memeriksa data akun Anda.")
 			return
 		}
 
-		// GENERATE TOKEN
-		jwtToken, err := GenerateJWT(userID, username)
+		// Buat kode login sekali pakai; JWT baru diberikan saat frontend menukar kode ini
+		loginCode, err := issueLoginCode(uint(userID))
 		if err != nil {
-			http.Error(w, "Gagal membuat sesi login.", http.StatusInternalServerError)
+			fmt.Println("Error membuat login code:", err.Error())
+			redirectLoginError(w, r, "Gagal membuat sesi login.")
 			return
 		}
 
-		// Redirect ke Frontend (parameter di-escape agar karakter khusus tidak merusak URL)
-		query := url.Values{}
-		query.Set("token", jwtToken)
-		query.Set("username", username)
-		frontendURL := strings.TrimRight(os.Getenv("FRONTEND_URL"), "/") + "/?" + query.Encode()
-		http.Redirect(w, r, frontendURL, http.StatusSeeOther)
+		redirectToFrontend(w, r, url.Values{"login_code": {loginCode}})
 	}
+}
+
+func hashLoginCode(code string) string {
+	sum := sha256.Sum256([]byte(code))
+	return hex.EncodeToString(sum[:])
+}
+
+func issueLoginCode(userID uint) (string, error) {
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	code := hex.EncodeToString(b)
+
+	// Bersihkan kode lama yang sudah kedaluwarsa (tabel tetap kecil)
+	config.DB.Where("expires_at < ?", time.Now()).Delete(&models.LoginCode{})
+
+	record := models.LoginCode{
+		CodeHash:  hashLoginCode(code),
+		UserID:    userID,
+		ExpiresAt: time.Now().Add(loginCodeTTL),
+	}
+	if err := config.DB.Create(&record).Error; err != nil {
+		return "", err
+	}
+	return code, nil
+}
+
+// POST /auth/google/exchange  {"code": "..."}  ->  {"token": "...", "username": "..."}
+func ExchangeLoginCode(c *gin.Context) {
+	var input struct {
+		Code string `json:"code" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Kode login tidak valid"})
+		return
+	}
+
+	// Hapus & ambil dalam satu query (DELETE ... RETURNING) agar kode benar-benar sekali pakai
+	var record models.LoginCode
+	res := config.DB.Clauses(clause.Returning{}).
+		Where("code_hash = ? AND expires_at > ?", hashLoginCode(input.Code), time.Now()).
+		Delete(&record)
+	if res.Error != nil || res.RowsAffected != 1 {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Kode login tidak valid atau sudah kedaluwarsa"})
+		return
+	}
+
+	var user models.User
+	if err := config.DB.First(&user, record.UserID).Error; err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User tidak ditemukan"})
+		return
+	}
+
+	jwtToken, err := GenerateJWT(int(user.ID), user.Username)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat sesi login"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"token": jwtToken, "username": user.Username})
 }
 
 // Ubah nama Google jadi username aman: huruf kecil, hanya huruf/angka ASCII.

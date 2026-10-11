@@ -16,3 +16,5 @@ vendor/
 # Backend Go Binaries
 src/backend/main
 src/backend/finance-backend
+# Arsip lokal (bisa berisi salinan source/secret)
+*.zip

@@ -65,6 +65,9 @@ func main() {
 	// gin.WrapH karena HandleGoogleCallback me-return http.Handler
 	r.GET("/auth/google/callback", gin.WrapH(handlers.HandleGoogleCallback(sqlDB)))
 
+	// Tukar kode login sekali pakai (dari redirect Google) dengan JWT
+	r.POST("/auth/google/exchange", handlers.ExchangeLoginCode)
+
 	// PROTECTED ROUTES
 	protected := r.Group("/")
 	protected.Use(middleware.RequireAuth)

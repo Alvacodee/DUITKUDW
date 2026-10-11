@@ -42,7 +42,7 @@ func ConnectDatabase() {
 		log.Fatal("❌ Gagal koneksi ke database: ", err)
 	}
 
-	err = database.AutoMigrate(&models.User{}, &models.Transaction{})
+	err = database.AutoMigrate(&models.User{}, &models.Transaction{}, &models.LoginCode{})
 	if err != nil {
 		log.Fatal("❌ Gagal migrasi database: ", err)
 	}

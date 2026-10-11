@@ -61,16 +61,33 @@ function getSmartTip(transactions) {
   };
 }
 
-// Login Google: backend redirect ke "/?token=...&username=...".
-// Simpan ke localStorage lalu bersihkan URL. Aman dipanggil berkali-kali (idempotent).
-const consumeAuthFromUrl = () => {
-  const params   = new URLSearchParams(window.location.search);
-  const urlToken = params.get('token');
-  if (urlToken && window.location.pathname === '/') {
-    localStorage.setItem('token', urlToken);
-    localStorage.setItem('username', params.get('username') || 'User');
-    window.history.replaceState({}, document.title, window.location.pathname);
+// Login Google: backend redirect ke "/#login_code=..." (atau "#login_error=...").
+// Kode sekali pakai ini ditukar dengan JWT lewat POST, sehingga JWT tidak pernah ada di URL.
+// Dibaca sekali saat modul dimuat lalu fragment dibersihkan, agar tidak diproses dua kali
+// (React StrictMode menjalankan effect dua kali di development).
+const readGoogleLoginResult = () => {
+  const params = new URLSearchParams(window.location.hash.slice(1));
+  const code   = params.get('login_code');
+  const error  = params.get('login_error');
+  if (code || error) {
+    window.history.replaceState({}, document.title, window.location.pathname + window.location.search);
   }
+  return { code, error };
+};
+const googleLogin = readGoogleLoginResult();
+
+let googleExchange = null;
+const exchangeGoogleCode = () => {
+  googleExchange ??= fetch(`${API_URL}/auth/google/exchange`, {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ code: googleLogin.code }),
+  }).then(async (res) => {
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.token) throw new Error(data.error || 'Login Google gagal.');
+    return data;
+  });
+  return googleExchange;
 };
 
 // Urutkan transaksi: tanggal terbaru dulu, lalu yang terakhir diinput
@@ -97,7 +114,7 @@ export default function AppShell() {
   const location  = useLocation();
   const pageTitle = PAGE_TITLES[location.pathname] ?? 'DUITKUDW';
 
-  const [token,        setToken]        = useState(() => { consumeAuthFromUrl(); return localStorage.getItem('token'); });
+  const [token,        setToken]        = useState(() => localStorage.getItem('token'));
   const [username,     setUsername]     = useState(() => localStorage.getItem('username'));
   const [transactions, setTransactions] = useState([]);
   const [editItem,     setEditItem]     = useState(null);
@@ -110,11 +127,27 @@ export default function AppShell() {
   const setDarkMode = (dark) => setTheme(dark ? 'dark' : 'light');
 
   // ── Auth
-  const handleLogin = (newToken, newUsername) => {
+  const handleLogin = useCallback((newToken, newUsername) => {
     setToken(newToken);
     setUsername(newUsername);
     setProfileImage(localStorage.getItem(profileImageKey(newUsername)));
-  };
+  }, []);
+
+  // Selesaikan login Google (tukar kode sekali pakai dengan JWT)
+  useEffect(() => {
+    if (googleLogin.error) toast.error(googleLogin.error);
+    if (!googleLogin.code) return;
+    let active = true;
+    exchangeGoogleCode()
+      .then(({ token: newToken, username: newUsername }) => {
+        if (!active) return;
+        localStorage.setItem('token', newToken);
+        localStorage.setItem('username', newUsername);
+        handleLogin(newToken, newUsername);
+      })
+      .catch((err) => active && toast.error(err.message));
+    return () => { active = false; };
+  }, [handleLogin]);
 
   const handleLogout = useCallback(() => {
     ['token', 'username'].forEach((k) => localStorage.removeItem(k));
