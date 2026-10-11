@@ -1,15 +1,13 @@
 package middleware
 
 import (
+	"finance-tracker-backend/auth"
 	"finance-tracker-backend/config"
 	"finance-tracker-backend/models"
-	"fmt"
 	"net/http"
-	"os"
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	"github.com/golang-jwt/jwt/v5"
 )
 
 func RequireAuth(c *gin.Context) {
@@ -21,41 +19,27 @@ func RequireAuth(c *gin.Context) {
 		return
 	}
 
-	// Validasi Token dengan Secret Key dari ENV.
-	// WithExpirationRequired: token tanpa "exp" ditolak (library sudah cek expired otomatis)
-	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, fmt.Errorf("metode sign tidak valid")
-		}
-		return []byte(os.Getenv("JWT_SECRET")), nil
-	}, jwt.WithExpirationRequired())
-
-	if err != nil || !token.Valid {
+	// Validasi tanda tangan, exp, dan sub
+	userID, version, err := auth.ParseToken(tokenString)
+	if err != nil {
 		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Token tidak valid atau sudah expired"})
 		return
 	}
 
-	claims, ok := token.Claims.(jwt.MapClaims)
-	if !ok {
-		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Token error"})
-		return
-	}
-
-	// "sub" berisi ID user (angka JSON -> float64). Cek tipenya agar tidak panic
-	sub, ok := claims["sub"].(float64)
-	if !ok || sub <= 0 {
-		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Token tidak valid"})
-		return
-	}
-
-	// Cari user di DB
 	var user models.User
-	if err := config.DB.First(&user, uint(sub)).Error; err != nil {
+	if err := config.DB.First(&user, userID).Error; err != nil {
 		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "User tidak ditemukan!"})
+		return
+	}
+
+	// Token diterbitkan sebelum password direset / sesi dicabut
+	if version != user.TokenVersion {
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Sesi sudah berakhir, silakan login ulang"})
 		return
 	}
 
 	// Simpan user ke context
 	c.Set("user", user)
+	c.Set("userID", user.ID)
 	c.Next()
 }

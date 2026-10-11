@@ -3,6 +3,7 @@ import { TrendingUp, TrendingDown, Minus, Wallet, ArrowDownLeft, ArrowUpRight } 
 import { Card, CardContent } from '../components/ui/card';
 import { cn } from '../lib/utils';
 import { parseTxDate } from '../utils/date';
+import { formatRupiah } from '../lib/format';
 
 function getMonthTransactions(transactions, offset = 0) {
   const now   = new Date();
@@ -76,7 +77,6 @@ function StatCard({ label, value, icon: Icon, iconBg, change, changeLabel, posit
 }
 
 export default function DashboardStats({ transactions }) {
-  const fmt = (n) => 'Rp ' + Math.abs(n).toLocaleString('id-ID');
 
   const { totalIncome, totalExpense, balance, incomeChange, expenseChange } = useMemo(() => {
     const allIncome  = transactions.filter((t) => t.type === 'Pemasukan').reduce((s, t) => s + Number(t.amount || 0), 0);
@@ -105,7 +105,7 @@ export default function DashboardStats({ transactions }) {
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
       <StatCard
         label="Saldo Total"
-        value={fmt(balance)}
+        value={formatRupiah(balance)}
         icon={Wallet}
         iconBg="bg-primary/10 text-primary"
         change={balanceChange}
@@ -114,7 +114,7 @@ export default function DashboardStats({ transactions }) {
       />
       <StatCard
         label="Total Pemasukan"
-        value={fmt(totalIncome)}
+        value={formatRupiah(totalIncome)}
         icon={ArrowDownLeft}
         iconBg="bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400"
         change={incomeChange}
@@ -123,7 +123,7 @@ export default function DashboardStats({ transactions }) {
       />
       <StatCard
         label="Total Pengeluaran"
-        value={fmt(totalExpense)}
+        value={formatRupiah(totalExpense)}
         icon={ArrowUpRight}
         iconBg="bg-rose-100 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400"
         change={expenseChange}

@@ -47,6 +47,11 @@ func ConnectDatabase() {
 		log.Fatal("❌ Gagal migrasi database: ", err)
 	}
 
+	// Akun yang dibuat lewat Google sudah pasti emailnya terverifikasi (idempoten, aman diulang)
+	database.Model(&models.User{}).
+		Where("password = ? AND email_verified = ?", models.GoogleOnlyPassword, false).
+		Update("email_verified", true)
+
 	DB = database
 
 	if os.Getenv("DATABASE_URL") != "" {

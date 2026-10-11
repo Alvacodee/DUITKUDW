@@ -1,16 +1,16 @@
 package controllers
 
 import (
+	"finance-tracker-backend/auth"
 	"finance-tracker-backend/config"
+	"finance-tracker-backend/handlers"
+	"finance-tracker-backend/middleware"
 	"finance-tracker-backend/models"
 	"net/http"
 	"net/mail"
-	"os"
 	"strings"
-	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/golang-jwt/jwt/v5" // Pastikan pakai v5 agar sama dengan middleware
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -31,16 +31,16 @@ func Register(c *gin.Context) {
 	body.Email = strings.ToLower(strings.TrimSpace(body.Email))
 
 	// Validasi input (email wajib: dipakai untuk reset password & kolomnya unique)
-	if len(body.Username) < 3 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Username minimal 3 karakter"})
+	if msg := auth.ValidateUsername(body.Username); msg != "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": msg})
 		return
 	}
 	if _, err := mail.ParseAddress(body.Email); err != nil || !strings.Contains(body.Email, "@") {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Format email tidak valid"})
 		return
 	}
-	if len(body.Password) < 8 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Password minimal 8 karakter"})
+	if msg := auth.ValidatePassword(body.Password); msg != "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": msg})
 		return
 	}
 
@@ -51,7 +51,7 @@ func Register(c *gin.Context) {
 		return
 	}
 
-	// Buat User
+	// Buat User (email belum terverifikasi sampai link verifikasi diklik)
 	user := models.User{
 		Username: body.Username,
 		Password: string(hash),
@@ -63,7 +63,10 @@ func Register(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Berhasil registrasi!"})
+	// Kirim email verifikasi. Kegagalan kirim tidak membatalkan registrasi.
+	handlers.SendVerificationEmail(user)
+
+	c.JSON(http.StatusOK, gin.H{"message": "Berhasil registrasi! Cek email untuk verifikasi alamat email."})
 }
 
 // LOGIN
@@ -77,39 +80,35 @@ func Login(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Gagal membaca body"})
 		return
 	}
+	username := strings.TrimSpace(body.Username)
+
+	// Batasi percobaan per akun (selain per IP di router) melawan brute force terdistribusi
+	if ok, retry := middleware.LoginAccountLimiter.Allow(middleware.AccountKey(username)); !ok {
+		middleware.TooManyRequests(c, retry)
+		return
+	}
 
 	// Cari User berdasarkan Username
 	var user models.User
-	if err := config.DB.First(&user, "username = ?", strings.TrimSpace(body.Username)).Error; err != nil {
+	if err := config.DB.First(&user, "username = ?", username).Error; err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Username atau password salah"})
 		return
 	}
 
 	// Cek Password
-	err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(body.Password))
-	if err != nil {
+	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(body.Password)); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Username atau password salah"})
 		return
 	}
 
-	// GENERATE TOKEN
-	// Kita harus pakai 'sub' untuk ID dan Secret dari ENV agar cocok dengan Middleware
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"sub": user.ID, // Middleware baca ini sebagai ID
-		"exp": time.Now().Add(time.Hour * 24 * 7).Unix(), // Expire 7 hari
-	})
-
-	// Sign token dengan Secret Key dari Docker Compose
-	tokenString, err := token.SignedString([]byte(os.Getenv("JWT_SECRET")))
-
+	tokenString, err := auth.IssueToken(user)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat token"})
 		return
 	}
 
-	// Kirim balik token
 	c.JSON(http.StatusOK, gin.H{
-		"token": tokenString,
-		"username": user.Username, // Kirim username buat frontend
+		"token":    tokenString,
+		"username": user.Username,
 	})
 }

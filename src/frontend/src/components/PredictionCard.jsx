@@ -1,14 +1,32 @@
-import { Sparkles, TrendingUp, TrendingDown, RefreshCw } from 'lucide-react';
+import { Sparkles, TrendingUp, TrendingDown, Minus, RefreshCw } from 'lucide-react';
 import { Button } from './ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { cn } from '../lib/utils';
+import { formatRupiah } from '../lib/format';
 
-function formatRp(n) {
-  return 'Rp ' + Math.abs(n).toLocaleString('id-ID');
-}
+// Tampilan per arah tren. Pengeluaran naik = buruk (merah), turun = baik (hijau),
+// flat / data belum cukup / error = netral.
+const TREND_STYLE = {
+  naik: {
+    Icon:   TrendingUp,
+    amount: 'bg-gradient-to-r from-rose-500 to-orange-500 bg-clip-text text-transparent',
+    badge:  'border-rose-200 bg-rose-50 text-rose-600 dark:border-rose-800 dark:bg-rose-900/20 dark:text-rose-400',
+  },
+  turun: {
+    Icon:   TrendingDown,
+    amount: 'bg-gradient-to-r from-emerald-500 to-teal-500 bg-clip-text text-transparent',
+    badge:  'border-emerald-200 bg-emerald-50 text-emerald-600 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-400',
+  },
+  neutral: {
+    Icon:   Minus,
+    amount: 'text-foreground',
+    badge:  'border-border bg-muted text-muted-foreground',
+  },
+};
 
 export default function PredictionCard({ onPredict, prediction, loading }) {
-  const isUp = prediction?.status?.toLowerCase().includes('naik');
+  const style = TREND_STYLE[prediction?.trend] ?? TREND_STYLE.neutral;
+  const TrendIcon = style.Icon;
 
   return (
     <Card className="relative overflow-hidden">
@@ -41,26 +59,17 @@ export default function PredictionCard({ onPredict, prediction, loading }) {
               Estimasi Total Pengeluaran
             </p>
 
-            <p
-              className={cn(
-                'text-5xl font-extrabold',
-                isUp
-                  ? 'bg-gradient-to-r from-rose-500 to-orange-500 bg-clip-text text-transparent'
-                  : 'bg-gradient-to-r from-emerald-500 to-teal-500 bg-clip-text text-transparent'
-              )}
-            >
-              {formatRp(prediction.prediction)}
+            <p className={cn('text-5xl font-extrabold', style.amount)}>
+              {formatRupiah(prediction.prediction)}
             </p>
 
             <div
               className={cn(
                 'inline-flex items-center gap-2 rounded-full border px-4 py-1.5 text-sm font-semibold',
-                isUp
-                  ? 'border-rose-200 bg-rose-50 text-rose-600 dark:border-rose-800 dark:bg-rose-900/20 dark:text-rose-400'
-                  : 'border-emerald-200 bg-emerald-50 text-emerald-600 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-400'
+                style.badge
               )}
             >
-              {isUp ? <TrendingUp size={15} /> : <TrendingDown size={15} />}
+              <TrendIcon size={15} />
               {prediction.status}
             </div>
 

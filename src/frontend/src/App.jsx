@@ -21,6 +21,7 @@ import SettingsPage    from './pages/SettingsPage';
 import GoalsPage       from './pages/GoalsPage';
 import ForgotPassword  from './pages/ForgotPassword';
 import ResetPassword   from './pages/ResetPassword';
+import VerifyEmail     from './pages/VerifyEmail';
 import ContactPage     from './pages/ContactPage';
 import { TermsPage, PrivacyPage, RefundPage } from './pages/LegalPage';
 
@@ -69,10 +70,11 @@ const readGoogleLoginResult = () => {
   const params = new URLSearchParams(window.location.hash.slice(1));
   const code   = params.get('login_code');
   const error  = params.get('login_error');
+  const notice = params.get('login_notice');
   if (code || error) {
     window.history.replaceState({}, document.title, window.location.pathname + window.location.search);
   }
-  return { code, error };
+  return { code, error, notice };
 };
 const googleLogin = readGoogleLoginResult();
 
@@ -136,6 +138,7 @@ export default function AppShell() {
   // Selesaikan login Google (tukar kode sekali pakai dengan JWT)
   useEffect(() => {
     if (googleLogin.error) toast.error(googleLogin.error);
+    if (googleLogin.notice) toast.warning(googleLogin.notice, { duration: 15000 });
     if (!googleLogin.code) return;
     let active = true;
     exchangeGoogleCode()
@@ -237,11 +240,12 @@ export default function AppShell() {
       });
       if (res.status === 401) { handleLogout(); return; }
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Gagal');
+      if (!res.ok) throw new Error(data.error || 'Server AI tidak dapat dihubungi.');
 
       // Data belum cukup / kosong: backend tetap 200 tapi tanpa prediksi bermakna
       if (data.status !== 'success') {
         setPrediction({
+          trend:      null,
           prediction: data.prediction || 0,
           status:     'Data Belum Cukup ⏳',
           message:    data.message || 'Tambahkan lebih banyak transaksi pengeluaran.',
@@ -252,13 +256,16 @@ export default function AppShell() {
       const trend = data.trend || 'flat';
       const icon  = trend === 'naik' ? '📈' : trend === 'turun' ? '📉' : '➖';
       setPrediction({
+        trend,
         prediction: data.prediction,
         status:     `Tren ${trend.charAt(0).toUpperCase() + trend.slice(1)} ${icon}`,
         message:    data.message,
       });
       toast.success('Prediksi AI berhasil!');
-    } catch {
-      setPrediction({ prediction: 0, status: 'Error', message: 'Server AI tidak dapat dihubungi.' });
+    } catch (err) {
+      // Pesan dari server (mis. 429 terlalu sering / 503 AI sibuk) ditampilkan apa adanya
+      const message = err instanceof TypeError ? 'Server AI tidak dapat dihubungi.' : err.message;
+      setPrediction({ trend: null, prediction: 0, status: 'Gagal', message });
       toast.error('Prediksi AI gagal.');
     } finally {
       setLoadingAI(false);
@@ -313,6 +320,7 @@ export default function AppShell() {
             {/* ── Halaman publik (bisa diakses tanpa login) ── */}
             <Route path="/forgot-password" element={<ForgotPassword darkMode={isDark} setDarkMode={setDarkMode} />} />
             <Route path="/reset-password"  element={<ResetPassword darkMode={isDark} setDarkMode={setDarkMode} />} />
+            <Route path="/verify-email"    element={<VerifyEmail />} />
             <Route path="/terms"   element={<TermsPage darkMode={isDark} />} />
             <Route path="/privacy" element={<PrivacyPage darkMode={isDark} />} />
             <Route path="/refund"  element={<RefundPage darkMode={isDark} />} />

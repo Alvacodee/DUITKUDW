@@ -1,21 +1,21 @@
 package main
 
 import (
+	"finance-tracker-backend/auth"
 	"finance-tracker-backend/config"
 	"finance-tracker-backend/controllers"
 	"finance-tracker-backend/handlers"
 	"finance-tracker-backend/middleware"
 	"log"
 	"os" // <-- Tambahan untuk membaca Environment Variables
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
 
 func main() {
 	// JWT_SECRET wajib ada. Tanpa secret, token bisa dipalsukan siapa saja
-	if os.Getenv("JWT_SECRET") == "" {
-		log.Fatal("❌ JWT_SECRET belum di-set di environment")
-	}
+	auth.CheckSecret()
 
 	// Konek Database
 	config.ConnectDatabase()
@@ -46,27 +46,27 @@ func main() {
 		c.Next()
 	})
 
+	// Rate limit per IP untuk endpoint publik yang sensitif
+	loginLimit := middleware.LimitByIP(middleware.NewLimiter(20, time.Minute))
+	registerLimit := middleware.LimitByIP(middleware.NewLimiter(10, time.Hour))
+	resetLimit := middleware.LimitByIP(middleware.NewLimiter(10, 15*time.Minute))
+
 	// ROUTING STANDAR
-	r.POST("/register", controllers.Register)
-	r.POST("/login", controllers.Login)
-	r.POST("/forgot-password", handlers.ForgotPassword)
-	r.POST("/reset-password", handlers.ResetPassword)
+	r.POST("/register", registerLimit, controllers.Register)
+	r.POST("/login", loginLimit, controllers.Login)
+	r.POST("/forgot-password", resetLimit, handlers.ForgotPassword)
+	r.POST("/reset-password", resetLimit, handlers.ResetPassword)
+	r.POST("/verify-email", resetLimit, handlers.VerifyEmail)
 
 	// Route Login: Redirect ke Google
 	// gin.WrapF karena HandleGoogleLogin signature-nya (w, r)
 	r.GET("/auth/google/login", gin.WrapF(handlers.HandleGoogleLogin))
 
 	// Route Callback: Menerima data dari Google
-	sqlDB, err := config.DB.DB()
-	if err != nil {
-		log.Fatal("Gagal mengambil instance SQL DB:", err)
-	}
-
-	// gin.WrapH karena HandleGoogleCallback me-return http.Handler
-	r.GET("/auth/google/callback", gin.WrapH(handlers.HandleGoogleCallback(sqlDB)))
+	r.GET("/auth/google/callback", gin.WrapF(handlers.HandleGoogleCallback))
 
 	// Tukar kode login sekali pakai (dari redirect Google) dengan JWT
-	r.POST("/auth/google/exchange", handlers.ExchangeLoginCode)
+	r.POST("/auth/google/exchange", loginLimit, handlers.ExchangeLoginCode)
 
 	// PROTECTED ROUTES
 	protected := r.Group("/")
@@ -79,7 +79,8 @@ func main() {
 		protected.DELETE("/transactions/:id", controllers.DeleteTransaction)
 
 		// AI Prediction
-		protected.GET("/predict", controllers.PredictSpending)
+		// AI Prediction: maks 5 permintaan per user per menit (tiap request menjalankan Python)
+		protected.GET("/predict", middleware.LimitByUser(middleware.NewLimiter(5, time.Minute)), controllers.PredictSpending)
 	}
 
 	// Jalankan Server (PORT dari env jika ada, default 8080)

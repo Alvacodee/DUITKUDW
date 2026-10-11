@@ -12,6 +12,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -26,6 +27,16 @@ type PythonResponse struct {
 	ModelUsed  string  `json:"model_used"`
 }
 
+// Batas proses Python yang boleh berjalan bersamaan (tiap proses memuat pandas/statsmodels).
+var predictSlots = make(chan struct{}, predictConcurrency())
+
+func predictConcurrency() int {
+	if n, err := strconv.Atoi(os.Getenv("PREDICT_MAX_CONCURRENCY")); err == nil && n > 0 {
+		return n
+	}
+	return 2
+}
+
 func PredictSpending(c *gin.Context) {
 	// AMBIL USER DARI CONTEXT (Sesuai Middleware)
 	loggedInUser, ok := currentUser(c)
@@ -38,10 +49,10 @@ func PredictSpending(c *gin.Context) {
 
 	// AMBIL DATA TRANSAKSI (Filter by UserID)
 	var transactions []models.Transaction
-	
+
 	// Query: Ambil milik user tersebut DAN (tipe Pengeluaran ATAU expense)
 	err := config.DB.Where("user_id = ? AND (type = ? OR type = ?)", userID, "Pengeluaran", "expense").Find(&transactions).Error
-	
+
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal mengambil data transaksi"})
 		return
@@ -65,10 +76,20 @@ func PredictSpending(c *gin.Context) {
 		return
 	}
 
+	// Ambil slot eksekusi; tolak bila semua slot sedang dipakai agar server tidak kehabisan CPU/RAM
+	select {
+	case predictSlots <- struct{}{}:
+		defer func() { <-predictSlots }()
+	default:
+		c.Header("Retry-After", "10")
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "AI sedang sibuk, coba lagi sebentar lagi"})
+		return
+	}
+
 	// DETEKSI & JALANKAN PYTHON
 	cwd, _ := os.Getwd()
 	var pythonPath string
-	
+
 	// Cek path VENV
 	if runtime.GOOS == "windows" {
 		pythonPath = filepath.Join(cwd, ".venv", "Scripts", "python.exe")
@@ -85,15 +106,15 @@ func PredictSpending(c *gin.Context) {
 		}
 	}
 
-	scriptPath := filepath.Join(cwd, "ml", "predict.py") 
-	
+	scriptPath := filepath.Join(cwd, "ml", "predict.py")
+
 	// Batasi waktu eksekusi agar request tidak menggantung jika Python macet
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 60*time.Second)
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, pythonPath, scriptPath)
 	cmd.Stdin = bytes.NewReader(jsonData)
-	
+
 	var out bytes.Buffer
 	var stderr bytes.Buffer
 	cmd.Stdout = &out
@@ -102,7 +123,7 @@ func PredictSpending(c *gin.Context) {
 	err = cmd.Run()
 	if err != nil {
 		// Print error detail ke terminal backend untuk debugging
-		fmt.Println("❌ Error Python:", stderr.String()) 
+		fmt.Println("❌ Error Python:", stderr.String())
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menjalankan AI"})
 		return
 	}

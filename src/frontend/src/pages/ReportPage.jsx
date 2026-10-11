@@ -7,10 +7,7 @@ import { TrendingUp, TrendingDown, CalendarDays, ArrowDownLeft, ArrowUpRight, Mi
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
 import { cn } from '../lib/utils';
-
-function formatRp(n) {
-  return 'Rp ' + Math.abs(n).toLocaleString('id-ID');
-}
+import { formatRupiah, formatRupiahSigned } from '../lib/format';
 
 function getMonthKey(date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
@@ -30,7 +27,7 @@ const CustomTooltip = ({ active, payload, label }) => {
       <p className="font-semibold">{label}</p>
       {payload.map((p) => (
         <p key={p.dataKey} style={{ color: p.color }}>
-          {p.name}: {formatRp(p.value)}
+          {p.name}: {formatRupiah(p.value)}
         </p>
       ))}
     </div>
@@ -162,7 +159,7 @@ export default function ReportPage({ transactions }) {
                       {item.label}
                     </p>
                     <p className={cn('text-2xl font-bold mt-1', item.color)}>
-                      {formatRp(item.value)}
+                      {formatRupiah(item.value)}
                     </p>
                   </div>
                   <div className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-xl', item.bg)}>
@@ -246,7 +243,7 @@ export default function ReportPage({ transactions }) {
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="text-xs text-muted-foreground">{cat.pct.toFixed(0)}%</span>
-                      <span className="font-semibold tabular-nums">{formatRp(cat.value)}</span>
+                      <span className="font-semibold tabular-nums">{formatRupiah(cat.value)}</span>
                     </div>
                   </div>
                   <div className="h-1.5 w-full rounded-full bg-secondary overflow-hidden">
@@ -292,16 +289,16 @@ export default function ReportPage({ transactions }) {
                       <tr key={m.name} className="transition-colors hover:bg-muted/30">
                         <td className="px-4 py-2.5 font-medium">{m.name}</td>
                         <td className="px-4 py-2.5 text-right text-emerald-600 dark:text-emerald-400 tabular-nums text-xs">
-                          {formatRp(m.income)}
+                          {formatRupiah(m.income)}
                         </td>
                         <td className="px-4 py-2.5 text-right text-rose-600 dark:text-rose-400 tabular-nums text-xs">
-                          {formatRp(m.expense)}
+                          {formatRupiah(m.expense)}
                         </td>
                         <td className={cn(
                           'px-4 py-2.5 text-right font-semibold tabular-nums text-xs',
                           net >= 0 ? 'text-primary' : 'text-rose-500'
                         )}>
-                          {net >= 0 ? '+' : ''}{formatRp(net)}
+                          {formatRupiahSigned(net)}
                         </td>
                       </tr>
                     );

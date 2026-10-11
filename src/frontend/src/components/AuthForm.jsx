@@ -9,16 +9,10 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { API_URL } from '../config';
 import { useTheme } from '../theme/useTheme';
+import { PASSWORD_RULES, validatePassword } from '../lib/passwordPolicy';
 
 const EMPTY_FORM = { username: '', email: '', password: '' };
 
-const PASSWORD_RULES = [
-  { label: 'Minimal 8 karakter',        test: (p) => p.length >= 8 },
-  { label: 'Huruf besar (A-Z)',          test: (p) => /[A-Z]/.test(p) },
-  { label: 'Huruf kecil (a-z)',          test: (p) => /[a-z]/.test(p) },
-  { label: 'Angka (0-9)',                test: (p) => /[0-9]/.test(p) },
-  { label: 'Karakter unik (!@#$%...)',   test: (p) => /[!@#$%^&*(),.?":{}|<>]/.test(p) },
-];
 
 export default function AuthForm({ onLogin }) {
   const [isLogin, setIsLogin]         = useState(true);
@@ -31,11 +25,6 @@ export default function AuthForm({ onLogin }) {
 
   const set = (key) => (e) => setFormData((p) => ({ ...p, [key]: e.target.value }));
 
-  const validate = (pwd) => {
-    const failed = PASSWORD_RULES.find((r) => !r.test(pwd));
-    return failed ? failed.label : null;
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -44,7 +33,7 @@ export default function AuthForm({ onLogin }) {
       return;
     }
     if (!isLogin) {
-      const err = validate(formData.password);
+      const err = validatePassword(formData.password);
       if (err) { setError(err); return; }
     }
     setLoading(true);
@@ -96,7 +85,8 @@ export default function AuthForm({ onLogin }) {
           </div>
           <h2 className="mb-2 text-2xl font-bold">Registrasi Berhasil!</h2>
           <p className="mb-8 text-sm text-muted-foreground">
-            Akun kamu sudah siap. Silakan login sekarang.
+            Akun kamu sudah siap. Kami mengirim link verifikasi ke email kamu —
+            verifikasi agar akun tetap aman. Kamu sudah bisa login sekarang.
           </p>
           <Button
             className="w-full"

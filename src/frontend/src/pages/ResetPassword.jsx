@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useSearchParams, useNavigate, Link } from "react-router-dom";
 import { Lock, CheckCircle, AlertCircle, Sun, Moon } from "lucide-react";
 import { API_URL } from '../config';
+import { PASSWORD_RULES, validatePassword } from '../lib/passwordPolicy';
 
 export default function ResetPassword({ darkMode, setDarkMode }) {
   const [searchParams] = useSearchParams();
@@ -16,6 +17,12 @@ export default function ResetPassword({ darkMode, setDarkMode }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    const invalid = validatePassword(password);
+    if (invalid) {
+      setMsg(`Password belum memenuhi aturan: ${invalid}`);
+      setError(true);
+      return;
+    }
     setLoading(true);
     setMsg("");
     setError(false);
@@ -116,6 +123,13 @@ export default function ResetPassword({ darkMode, setDarkMode }) {
                     : 'bg-slate-50 border-slate-200 text-slate-800 placeholder-slate-400'
                 }`}
               />
+             <ul className="mt-2 ml-1 space-y-1">
+               {PASSWORD_RULES.map((r) => (
+                 <li key={r.label} className={`text-xs ${r.test(password) ? 'text-emerald-500' : darkMode ? 'text-slate-500' : 'text-slate-400'}`}>
+                   {r.test(password) ? '✓' : '•'} {r.label}
+                 </li>
+               ))}
+             </ul>
           </div>
           
           <button 

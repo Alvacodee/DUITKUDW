@@ -36,14 +36,14 @@ Tabel ini diperbarui setiap kali satu fase selesai. Kolom **Ditutup oleh** meruj
 | SEC-01 | 🟡👤 | `66b5ba1` (remote), Fase 0 | Hardcode dihapus, `*.zip` di-ignore. Password lama tidak berlaku di Postgres lokal, tetapi **masih ada di riwayat git — pastikan tidak dipakai di mana pun / rotasi.** |
 | SEC-02 | ✅ | `66b5ba1` (remote) | State OAuth acak via cookie `HttpOnly`. |
 | SEC-03 | ✅ | Fase 0 | Kode login sekali pakai via fragment URL + `POST /auth/google/exchange`. |
-| SEC-04 | 🟡 | `66b5ba1` + Fase 1 | `verified_email` sudah dicek; perlindungan pre-hijacking saat penautan akun dikerjakan di Fase 1. |
+| SEC-04 | ✅ | `66b5ba1` + Fase 1 | `email_verified` + verifikasi email; akun belum terverifikasi diamankan saat login Google. |
 | SEC-05 | ✅ | `66b5ba1` (remote) | Status HTTP, error decode, dan email kosong dicek. |
-| SEC-06 | 🟡 | `81c59a5` + Fase 1 | Timeout `/predict` 60 detik sudah ada; rate limiting & batas konkurensi di Fase 1. |
+| SEC-06 | ✅ | `81c59a5` + Fase 1 | Rate limit per IP/akun/user + batas konkurensi Python. In-memory (single instance). |
 | SEC-07 | ✅ | `66b5ba1` (remote) | Pesan lupa-password seragam. |
 | SEC-08 | ✅ | `81c59a5` (remote) | stderr Python tidak lagi dikirim ke klien. |
-| SEC-09 | 🟡 | `81c59a5` + Fase 1 | Validasi dasar di server sudah ada; kebijakan password disamakan dengan frontend di Fase 1. |
-| SEC-10 | 🟡 | `66b5ba1` + Fase 1 | `JWT_SECRET` wajib ada; validasi panjang & invalidasi token di Fase 1. |
-| SEC-11 | 🟡 | `66b5ba1` + Fase 1 | Error `rand.Read` & expiry sudah ditangani; hash token di Fase 1. |
+| SEC-09 | ✅ | Fase 1 | `auth.ValidatePassword` / `ValidateUsername` di server. |
+| SEC-10 | ✅👤 | Fase 1 | `token_version` + claim `ver`; peringatan secret < 32 karakter. **`JWT_SECRET` lokal hanya 14 karakter — ganti.** |
+| SEC-11 | ✅ | Fase 1 | Reset/verify/login token disimpan sebagai SHA-256. |
 | SEC-12 | ⏳ | Fase 2 | |
 | SEC-13 | ⏳ | Fase 3 | |
 | SEC-14 | 🟡 | `0ea6637` + Fase 3 | Profil & foto sudah per-user; anggaran & target tabungan di Fase 3. |
@@ -56,10 +56,10 @@ Tabel ini diperbarui setiap kali satu fase selesai. Kolom **Ditutup oleh** meruj
 |---|:-:|---|---|
 | BUG-01 | ✅ | merge `e1f3dae` | Route publik dikembalikan. |
 | BUG-02 | ✅ | `0ea6637` + `81c59a5` | Email wajib di form & server. |
-| BUG-03 | ⏳ | Fase 1 | |
+| BUG-03 | ✅ | Fase 1 | `lib/format.js` di Dashboard & Laporan. |
 | BUG-04 | ✅ | `81c59a5` (remote) | Dibandingkan dengan 30 hari terakhir. |
 | BUG-05 | ✅ | `81c59a5` + merge | Go & frontend memeriksa `status`. |
-| BUG-06 | 🟡 | `81c59a5` + Fase 1 | Pesan fallback sudah ada; tampilan tren `flat` di `PredictionCard` di Fase 1. |
+| BUG-06 | ✅ | `81c59a5` + Fase 1 | `PredictionCard` memakai `trend` eksplisit. |
 | BUG-07 | ✅ | `66b5ba1`, `81c59a5` | |
 | BUG-08 | 🟡 | Fase 2 | Timeout sudah ada; path script masih bergantung `cwd`. |
 | BUG-09 | ⏳ | Fase 2 | |
@@ -82,12 +82,12 @@ Tabel ini diperbarui setiap kali satu fase selesai. Kolom **Ditutup oleh** meruj
 |---|:-:|---|---|
 | CS-01 | ⏳ | Fase 2 | `utils/date.js` sudah ada sebagai awal. |
 | CS-02 | ⏳ | Fase 2 | |
-| CS-03 | ⏳ | Fase 2 | |
+| CS-03 | 🟡 | Fase 1 + Fase 2 | Callback Google sudah memakai GORM & `auth.IssueToken`; struktur paket di Fase 2. |
 | CS-04 | ✅ | `81c59a5` (remote) | Helper `currentUser`. |
 | CS-05 | ⏳ | Fase 2 | |
 | CS-06 | ⏳ | Fase 2 | |
 | CS-07 | 🟡 | Fase 2 | Remote sudah bersih; 6 error tersisa dari file redesign. |
-| CS-08 | ⏳ | Fase 2 | |
+| CS-08 | 🟡 | Fase 1 + Fase 2 | Unit test `auth`, `middleware`; integration test `handlers`. CI di Fase 2. |
 | CS-09 | ⏳ | Fase 3 | |
 | CS-10 | 🟡 | `66b5ba1` + Fase 3 | `jwt/v4` sudah dihapus; dependensi npm tak terpakai masih ada. |
 | CS-11 | ⏳ | Fase 3 | |
@@ -97,9 +97,9 @@ Tabel ini diperbarui setiap kali satu fase selesai. Kolom **Ditutup oleh** meruj
 
 | ID | Status | Ditutup oleh | Catatan |
 |---|:-:|---|---|
-| INC-01 | ⏳ | Fase 2 | |
+| INC-01 | ✅ | Fase 1 | Satu penerbit token `auth.IssueToken`. |
 | INC-02 | 🟡 | `81c59a5` + Fase 2 | Server menolak tipe selain `Pemasukan`/`Pengeluaran`; normalisasi data lama di Fase 2. |
-| INC-03 | ⏳ | Fase 1 | |
+| INC-03 | ✅ | Fase 1 | Aturan password identik di frontend & backend. |
 | INC-04 | 🟡 | merge + Fase 2 | |
 | INC-05 | ⏳ | Fase 2 | |
 | INC-06 | 🟡 | `d904325` + Fase 3 | |
